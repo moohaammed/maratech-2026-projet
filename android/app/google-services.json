@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "123219147492",
+    "project_id": "maratech-impact",
+    "storage_bucket": "maratech-impact.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123219147492:android:d52fb8a42c40bd61f28af1",
+        "android_client_info": {
+          "package_name": "com.example.impact"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6IPy_qMANCF_gfHIoL8JexStQic8ezS0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
