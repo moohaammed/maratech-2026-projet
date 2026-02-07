@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
+import '../accessibility/providers/accessibility_provider.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
-/// Home Screen - Main dashboard after login
+/// Home Screen - Main dashboard for Adhérant (Regular Member)
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -9,11 +14,45 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+
+
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final FlutterTts _tts = FlutterTts();
+
+  @override
+  void initState() {
+    super.initState();
+    _initTTS();
+  }
+
+  Future<void> _initTTS() async {
+    await _tts.setLanguage("fr-FR");
+    await _tts.setSpeechRate(0.5);
+  }
+
+  Future<void> _speak(String text) async {
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (profile.visualNeeds == 'blind') {
+      await _tts.speak(text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    
+    final tabs = ['Accueil', 'Événements', 'Le Club', 'Profil'];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -28,26 +67,31 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() => _currentIndex = index);
+          _speak("Onglet ${tabs[index]} sélectionné");
         },
-        destinations: const [
+        backgroundColor: highContrast ? AppColors.highContrastSurface : null,
+        indicatorColor: highContrast ? AppColors.highContrastPrimary : AppColors.primary.withOpacity(0.2),
+        height: 65 * textScale.clamp(1.0, 1.2),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(Icons.home_outlined, size: 24 * textScale.clamp(1.0, 1.2)),
+            selectedIcon: Icon(Icons.home, size: 24 * textScale.clamp(1.0, 1.2)),
             label: 'Accueil',
           ),
           NavigationDestination(
-            icon: Icon(Icons.event_outlined),
-            selectedIcon: Icon(Icons.event),
+            icon: Icon(Icons.event_outlined, size: 24 * textScale.clamp(1.0, 1.2)),
+            selectedIcon: Icon(Icons.event, size: 24 * textScale.clamp(1.0, 1.2)),
             label: 'Événements',
           ),
           NavigationDestination(
-            icon: Icon(Icons.info_outlined),
-            selectedIcon: Icon(Icons.info),
+            icon: Icon(Icons.info_outlined, size: 24 * textScale.clamp(1.0, 1.2)),
+            selectedIcon: Icon(Icons.info, size: 24 * textScale.clamp(1.0, 1.2)),
             label: 'Le Club',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outlined),
-            selectedIcon: Icon(Icons.person),
+            icon: Icon(Icons.person_outlined, size: 24 * textScale.clamp(1.0, 1.2)),
+            selectedIcon: Icon(Icons.person, size: 24 * textScale.clamp(1.0, 1.2)),
             label: 'Profil',
           ),
         ],
@@ -56,301 +100,760 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Home Tab - Today's run + quick actions
-class _HomeTab extends StatelessWidget {
+/// Home Tab - Today's run + quick actions + upcoming events
+class _HomeTab extends StatefulWidget {
   const _HomeTab();
 
   @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+  int _notificationCount = 2; // Placeholder
+
+  @override
+  void initState() {
+    super.initState();
+    _initTTS();
+    _loadUserData();
+    
+    // Ensure we have the latest profile for this user
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AccessibilityProvider>(context, listen: false).loadProfile();
+    });
+  }
+
+  // TTS for Home Content
+  final FlutterTts _tts = FlutterTts();
+  Future<void> _initTTS() async {
+    await _tts.setLanguage("fr-FR");
+    await _tts.setSpeechRate(0.5);
+  }
+
+  Future<void> _speak(String text) async {
+    if (!mounted) return;
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (profile.visualNeeds == 'blind') {
+      await _tts.speak(text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        if (doc.exists && mounted) {
+          setState(() {
+            _userData = doc.data();
+            _isLoading = false;
+          });
+          
+          // Announce Welcome Message for Blind Users
+          final name = _userData?['fullName'] ?? _userData?['name'] ?? 'Membre';
+          final group = _getGroupName();
+          _speak("Bienvenue sur l'écran d'accueil, $name. Vous êtes dans le groupe $group. Double tapez pour voir votre course d'aujourd'hui.");
+          
+        } else {
+          setState(() => _isLoading = false);
+        }
+      } catch (e) {
+        debugPrint('Error loading user: $e');
+        setState(() => _isLoading = false);
+      }
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _getGroupName() {
+    final groupId = _userData?['groupId'] ?? _userData?['group'] ?? '';
+    switch (groupId.toString().toLowerCase()) {
+      case 'beginner':
+      case 'débutants':
+        return 'Débutants';
+      case 'intermediate':
+      case 'intermédiaires':
+        return 'Intermédiaires';
+      case 'advanced':
+      case 'confirmés':
+        return 'Confirmés';
+      default:
+        return 'Non assigné';
+    }
+  }
+
+  Color _getGroupColor() {
+    final groupId = _userData?['groupId'] ?? _userData?['group'] ?? '';
+    switch (groupId.toString().toLowerCase()) {
+      case 'beginner':
+      case 'débutants':
+        return AppColors.beginner;
+      case 'intermediate':
+      case 'intermédiaires':
+        return AppColors.intermediate;
+      case 'advanced':
+      case 'confirmés':
+        return AppColors.advanced;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getMemberSince() {
+    final timestamp = _userData?['memberSince'] ?? _userData?['createdAt'];
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      final months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+      return '${months[date.month - 1]} ${date.year}';
+    }
+    return 'Récemment';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final boldText = profile.boldText;
+    
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+    final secondaryTextColor = highContrast ? Colors.white70 : AppColors.textSecondary;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    
+    final userName = _userData?['fullName'] ?? _userData?['name'] ?? 'Membre';
+    final firstName = userName.split(' ').first;
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('Running Club Tunis'),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
+        elevation: highContrast ? 0 : 2,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.jpg',
+              width: 32 * textScale.clamp(1.0, 1.2),
+              height: 32 * textScale.clamp(1.0, 1.2),
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.directions_run,
+                size: 28 * textScale.clamp(1.0, 1.2),
+              ),
+            ),
+            SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+            Text(
+              'Running Club Tunis',
+              style: TextStyle(
+                fontSize: 18 * textScale,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              // TODO: Navigate to notifications
-            },
-            tooltip: 'Notifications',
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.notifications_outlined,
+                  size: 26 * textScale.clamp(1.0, 1.2),
+                ),
+                onPressed: () {
+                  // TODO: Navigate to notifications
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Notifications à venir', style: TextStyle(fontSize: 14 * textScale)),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                tooltip: 'Notifications',
+              ),
+              if (_notificationCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: EdgeInsets.all(4 * textScale.clamp(1.0, 1.2)),
+                    decoration: BoxDecoration(
+                      color: highContrast ? Colors.yellow : AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: BoxConstraints(
+                      minWidth: 18 * textScale.clamp(1.0, 1.2),
+                      minHeight: 18 * textScale.clamp(1.0, 1.2),
+                    ),
+                    child: Text(
+                      '$_notificationCount',
+                      style: TextStyle(
+                        color: highContrast ? Colors.black : Colors.white,
+                        fontSize: 10 * textScale,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(width: 8),
+        ],
+      ),
+      body: _isLoading
+          ? Center(
+              child: CircularProgressIndicator(color: primaryColor),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadUserData,
+              color: primaryColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Welcome Card
+                    _buildWelcomeCard(
+                      firstName: firstName,
+                      groupName: _getGroupName(),
+                      groupColor: _getGroupColor(),
+                      memberSince: _getMemberSince(),
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                      primaryColor: primaryColor,
+                    ),
+                    
+                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+
+                    // Today's Run Section
+                    _buildSectionHeader(
+                      icon: '🏃',
+                      title: "Course d'aujourd'hui",
+                      textScale: textScale,
+                      textColor: textColor,
+                      boldText: boldText,
+                    ),
+                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                    _buildTodayEventCard(
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                      textColor: textColor,
+                      secondaryTextColor: secondaryTextColor,
+                      primaryColor: primaryColor,
+                      groupName: _getGroupName(),
+                      groupColor: _getGroupColor(),
+                    ),
+                    
+                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+
+                    // Quick Actions
+                    _buildSectionHeader(
+                      icon: '⚡',
+                      title: 'Actions rapides',
+                      textScale: textScale,
+                      textColor: textColor,
+                      boldText: boldText,
+                    ),
+                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                    _buildQuickActions(
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                    ),
+                    
+                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+
+                    // Upcoming Events
+                    _buildSectionHeader(
+                      icon: '📅',
+                      title: 'Événements à venir',
+                      textScale: textScale,
+                      textColor: textColor,
+                      boldText: boldText,
+                    ),
+                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                    _buildUpcomingEventCard(
+                      title: 'Sortie Longue',
+                      date: 'Sam 08/02',
+                      time: '07:00',
+                      location: 'Lac 2',
+                      distance: '20 km',
+                      group: 'Tous les groupes',
+                      groupColor: AppColors.info,
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                      textColor: textColor,
+                      secondaryTextColor: secondaryTextColor,
+                    ),
+                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                    _buildUpcomingEventCard(
+                      title: 'Course Easy',
+                      date: 'Dim 09/02',
+                      time: '08:00',
+                      location: 'Parc Belvédère',
+                      distance: '6 km',
+                      group: 'Débutants',
+                      groupColor: AppColors.beginner,
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                      textColor: textColor,
+                      secondaryTextColor: secondaryTextColor,
+                    ),
+                    
+                    SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildWelcomeCard({
+    required String firstName,
+    required String groupName,
+    required Color groupColor,
+    required String memberSince,
+    required double textScale,
+    required bool highContrast,
+    required bool boldText,
+    required Color primaryColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20 * textScale.clamp(1.0, 1.2)),
+      decoration: BoxDecoration(
+        gradient: highContrast 
+            ? null
+            : LinearGradient(
+                colors: [primaryColor, AppColors.primaryDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: highContrast ? AppColors.highContrastSurface : null,
+        borderRadius: BorderRadius.circular(20),
+        border: highContrast ? Border.all(color: primaryColor, width: 2) : null,
+        boxShadow: highContrast ? null : [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryDark],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50 * textScale.clamp(1.0, 1.2),
+                height: 50 * textScale.clamp(1.0, 1.2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: highContrast ? primaryColor : Colors.white,
+                    width: 2,
                   ),
-                ],
+                ),
+                child: Icon(
+                  Icons.person,
+                  color: primaryColor,
+                  size: 28 * textScale.clamp(1.0, 1.2),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 25,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, color: AppColors.primary),
+              SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bienvenue! 👋',
+                      style: TextStyle(
+                        color: highContrast ? Colors.white70 : Colors.white70,
+                        fontSize: 14 * textScale,
+                        fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
                       ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    Text(
+                      firstName,
+                      style: TextStyle(
+                        color: highContrast ? primaryColor : Colors.white,
+                        fontSize: 22 * textScale,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+          Wrap(
+            spacing: 12 * textScale.clamp(1.0, 1.2),
+            runSpacing: 8 * textScale.clamp(1.0, 1.2),
+            children: [
+              // Group Badge
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 12 * textScale.clamp(1.0, 1.2),
+                  vertical: 6 * textScale.clamp(1.0, 1.2),
+                ),
+                decoration: BoxDecoration(
+                  color: highContrast 
+                      ? groupColor.withOpacity(0.3) 
+                      : Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: highContrast ? groupColor : Colors.white54,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8 * textScale.clamp(1.0, 1.2),
+                      height: 8 * textScale.clamp(1.0, 1.2),
+                      decoration: BoxDecoration(
+                        color: groupColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
+                    Text(
+                      groupName,
+                      style: TextStyle(
+                        color: highContrast ? Colors.white : Colors.white,
+                        fontSize: 13 * textScale,
+                        fontWeight: boldText ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Member Since
+              Text(
+                'Membre depuis $memberSince',
+                style: TextStyle(
+                  color: highContrast ? Colors.white70 : Colors.white70,
+                  fontSize: 12 * textScale,
+                  fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String icon,
+    required String title,
+    required double textScale,
+    required Color textColor,
+    required bool boldText,
+  }) {
+    return Semantics(
+      header: true,
+      child: Row(
+        children: [
+          Text(
+            icon,
+            style: TextStyle(fontSize: 20 * textScale),
+          ),
+          SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 20 * textScale,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodayEventCard({
+    required double textScale,
+    required bool highContrast,
+    required bool boldText,
+    required Color textColor,
+    required Color secondaryTextColor,
+    required Color primaryColor,
+    required String groupName,
+    required Color groupColor,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: highContrast ? AppColors.highContrastSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: highContrast ? Border.all(color: Colors.white, width: 2) : null,
+        boxShadow: highContrast ? null : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            // TODO: Navigate to event details
+          },
+          child: Padding(
+            padding: EdgeInsets.all(20 * textScale.clamp(1.0, 1.2)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Row
+                Row(
+                  children: [
+                    // Group Badge
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12 * textScale.clamp(1.0, 1.2),
+                        vertical: 6 * textScale.clamp(1.0, 1.2),
+                      ),
+                      decoration: BoxDecoration(
+                        color: groupColor.withOpacity(highContrast ? 0.3 : 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: groupColor, width: 1.5),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'Bienvenue! 👋',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
+                          Container(
+                            width: 8 * textScale.clamp(1.0, 1.2),
+                            height: 8 * textScale.clamp(1.0, 1.2),
+                            decoration: BoxDecoration(
+                              color: groupColor,
+                              shape: BoxShape.circle,
                             ),
                           ),
+                          SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
                           Text(
-                            'Visiteur',
+                            groupName,
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                              color: groupColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12 * textScale,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.group, color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Groupe: Non assigné',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                    const Spacer(),
+                    // Time Badge
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12 * textScale.clamp(1.0, 1.2),
+                        vertical: 6 * textScale.clamp(1.0, 1.2),
+                      ),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(highContrast ? 0.3 : 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.access_time_filled,
+                            size: 14 * textScale.clamp(1.0, 1.2),
+                            color: primaryColor,
+                          ),
+                          SizedBox(width: 4 * textScale.clamp(1.0, 1.2)),
+                          Text(
+                            '18:00',
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13 * textScale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+                
+                // Event Title
+                Text(
+                  'Sortie Tempo',
+                  style: TextStyle(
+                    fontSize: 22 * textScale,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                
+                SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                
+                // Details
+                _buildEventDetail(
+                  icon: Icons.location_on_outlined,
+                  text: 'Lac de Tunis - Entrée Sud',
+                  textScale: textScale,
+                  color: secondaryTextColor,
+                ),
+                SizedBox(height: 6 * textScale.clamp(1.0, 1.2)),
+                _buildEventDetail(
+                  icon: Icons.straighten,
+                  text: '12 km  •  Allure: 5:30-6:30 min/km',
+                  textScale: textScale,
+                  color: secondaryTextColor,
+                ),
+                SizedBox(height: 6 * textScale.clamp(1.0, 1.2)),
+                _buildEventDetail(
+                  icon: Icons.people_outline,
+                  text: '12/40 inscrits',
+                  textScale: textScale,
+                  color: secondaryTextColor,
+                ),
+                
+                SizedBox(height: 20 * textScale.clamp(1.0, 1.2)),
+                
+                // Register Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52 * textScale.clamp(1.0, 1.2),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+                              Text(
+                                'Inscription confirmée!',
+                                style: TextStyle(fontSize: 14 * textScale),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: AppColors.success,
+                          behavior: SnackBarBehavior.floating,
                         ),
-                      ],
+                      );
+                    },
+                    icon: Icon(Icons.check_circle_outline, size: 20 * textScale.clamp(1.0, 1.2)),
+                    label: Text(
+                      "S'INSCRIRE",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15 * textScale,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Today's Run Section
-            Semantics(
-              header: true,
-              child: const Text(
-                "🏃 Course d'aujourd'hui",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildEventCard(
-              title: 'Sortie Tempo',
-              time: '18:00',
-              location: 'Lac de Tunis - Entrée Sud',
-              distance: '12 km',
-              group: 'Intermédiaires',
-              groupColor: AppColors.intermediate,
-            ),
-            const SizedBox(height: 24),
-
-            // Quick Actions
-            Semantics(
-              header: true,
-              child: const Text(
-                '⚡ Actions rapides',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.event,
-                    label: 'Événements',
-                    color: AppColors.primary,
-                    onTap: () {},
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.history,
-                    label: 'Historique',
-                    color: AppColors.success,
-                    onTap: () {},
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickAction(
-                    icon: Icons.campaign,
-                    label: 'Annonces',
-                    color: AppColors.warning,
-                    onTap: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: highContrast ? Colors.black : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: highContrast ? 0 : 2,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Upcoming Events
-            Semantics(
-              header: true,
-              child: const Text(
-                '📅 Événements à venir',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildEventCard(
-              title: 'Sortie Longue',
-              time: 'Sam 07:00',
-              location: 'Lac de Tunis - Entrée Est',
-              distance: '20 km',
-              group: 'Confirmés',
-              groupColor: AppColors.advanced,
-            ),
-            const SizedBox(height: 12),
-            _buildEventCard(
-              title: 'Course Easy',
-              time: 'Dim 08:00',
-              location: 'Parc du Belvédère',
-              distance: '6 km',
-              group: 'Débutants',
-              groupColor: AppColors.beginner,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildEventCard({
-    required String title,
-    required String time,
-    required String location,
-    required String distance,
-    required String group,
-    required Color groupColor,
+  Widget _buildEventDetail({
+    required IconData icon,
+    required String text,
+    required double textScale,
+    required Color color,
   }) {
-    return Semantics(
-      button: true,
-      hint: 'Double tap pour voir les détails',
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // TODO: Navigate to event details
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: groupColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: groupColor),
-                      ),
-                      child: Text(
-                        group,
-                        style: TextStyle(
-                          color: groupColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        location,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      distance,
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ],
+    return Row(
+      children: [
+        Icon(icon, size: 18 * textScale.clamp(1.0, 1.2), color: color),
+        SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 14 * textScale,
             ),
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActions({
+    required double textScale,
+    required bool highContrast,
+    required bool boldText,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickAction(
+            icon: Icons.event,
+            label: 'Événements',
+            color: highContrast ? AppColors.highContrastPrimary : AppColors.primary,
+            textScale: textScale,
+            highContrast: highContrast,
+            onTap: () {},
+          ),
+        ),
+        SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
+        Expanded(
+          child: _buildQuickAction(
+            icon: Icons.history,
+            label: 'Historique',
+            color: highContrast ? Colors.cyan : AppColors.success,
+            textScale: textScale,
+            highContrast: highContrast,
+            onTap: () {},
+          ),
+        ),
+        SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
+        Expanded(
+          child: _buildQuickAction(
+            icon: Icons.campaign,
+            label: 'Annonces',
+            color: highContrast ? Colors.yellow : AppColors.warning,
+            textScale: textScale,
+            highContrast: highContrast,
+            onTap: () {},
+          ),
+        ),
+      ],
     );
   }
 
@@ -358,33 +861,170 @@ class _HomeTab extends StatelessWidget {
     required IconData icon,
     required String label,
     required Color color,
+    required double textScale,
+    required bool highContrast,
     required VoidCallback onTap,
   }) {
     return Semantics(
       button: true,
       label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
+            decoration: BoxDecoration(
+              color: color.withOpacity(highContrast ? 0.2 : 0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: highContrast ? Border.all(color: color, width: 2) : null,
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
                   color: color,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
+                  size: 28 * textScale.clamp(1.0, 1.2),
                 ),
-              ),
-            ],
+                SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12 * textScale,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpcomingEventCard({
+    required String title,
+    required String date,
+    required String time,
+    required String location,
+    required String distance,
+    required String group,
+    required Color groupColor,
+    required double textScale,
+    required bool highContrast,
+    required bool boldText,
+    required Color textColor,
+    required Color secondaryTextColor,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: highContrast ? AppColors.highContrastSurface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: highContrast ? Border.all(color: Colors.white54, width: 1) : null,
+        boxShadow: highContrast ? null : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // TODO: Navigate to event details
+          },
+          child: Padding(
+            padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
+            child: Row(
+              children: [
+                // Date Column
+                Container(
+                  padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
+                  decoration: BoxDecoration(
+                    color: groupColor.withOpacity(highContrast ? 0.3 : 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        date.split(' ').first,
+                        style: TextStyle(
+                          fontSize: 12 * textScale,
+                          fontWeight: FontWeight.w600,
+                          color: groupColor,
+                        ),
+                      ),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 14 * textScale,
+                          fontWeight: FontWeight.bold,
+                          color: groupColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 16 * textScale.clamp(1.0, 1.2)),
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16 * textScale,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      SizedBox(height: 4 * textScale.clamp(1.0, 1.2)),
+                      Text(
+                        '$location • $distance',
+                        style: TextStyle(
+                          fontSize: 13 * textScale,
+                          color: secondaryTextColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      SizedBox(height: 4 * textScale.clamp(1.0, 1.2)),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8 * textScale.clamp(1.0, 1.2),
+                          vertical: 2 * textScale.clamp(1.0, 1.2),
+                        ),
+                        decoration: BoxDecoration(
+                          color: groupColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          group,
+                          style: TextStyle(
+                            fontSize: 11 * textScale,
+                            fontWeight: FontWeight.w500,
+                            color: groupColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow
+                Icon(
+                  Icons.chevron_right,
+                  color: secondaryTextColor,
+                  size: 24 * textScale.clamp(1.0, 1.2),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -392,70 +1032,213 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-/// Events Tab - Placeholder
+/// Events Tab - Full events list
 class _EventsTab extends StatelessWidget {
   const _EventsTab();
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Événements')),
-      body: const Center(
-        child: Text(
-          '📅 Liste des événements\n(À implémenter)',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18),
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text(
+          'Événements',
+          style: TextStyle(fontSize: 20 * textScale),
+        ),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.event_note,
+              size: 64 * textScale.clamp(1.0, 1.3),
+              color: primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+            Text(
+              '📅 Liste des événements',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18 * textScale,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
+            Text(
+              'À implémenter prochainement',
+              style: TextStyle(
+                fontSize: 14 * textScale,
+                color: textColor.withOpacity(0.6),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Club Tab - Placeholder
+/// Club Tab - Club information
 class _ClubTab extends StatelessWidget {
   const _ClubTab();
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Le Club')),
-      body: const Center(
-        child: Text(
-          '🏛️ Informations du club\n(À implémenter)',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18),
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text(
+          'Le Club',
+          style: TextStyle(fontSize: 20 * textScale),
+        ),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.groups,
+              size: 64 * textScale.clamp(1.0, 1.3),
+              color: primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+            Text(
+              '🏛️ Informations du club',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18 * textScale,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
+            Text(
+              'Historique • Groupes • Valeurs',
+              style: TextStyle(
+                fontSize: 14 * textScale,
+                color: textColor.withOpacity(0.6),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Profile Tab - Placeholder
+/// Profile Tab - User profile and settings
 class _ProfileTab extends StatelessWidget {
   const _ProfileTab();
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil')),
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text(
+          'Profil',
+          style: TextStyle(fontSize: 20 * textScale),
+        ),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
+      ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              '👤 Profil utilisateur\n(À implémenter)',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/login');
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Déconnexion'),
-            ),
-          ],
+        child: Padding(
+          padding: EdgeInsets.all(24 * textScale.clamp(1.0, 1.2)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.person,
+                size: 64 * textScale.clamp(1.0, 1.3),
+                color: primaryColor.withOpacity(0.5),
+              ),
+              SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+              Text(
+                '👤 Profil utilisateur',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18 * textScale,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
+              Text(
+                'Statistiques • Paramètres • Accessibilité',
+                style: TextStyle(
+                  fontSize: 14 * textScale,
+                  color: textColor.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 48 * textScale.clamp(1.0, 1.2)),
+              
+              // Logout Button
+              SizedBox(
+                width: double.infinity,
+                height: 56 * textScale.clamp(1.0, 1.2),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                    
+                    // Clear cached accessibility profile
+                    if (context.mounted) {
+                      await Provider.of<AccessibilityProvider>(context, listen: false).clearLocalProfile();
+                      if (context.mounted) {
+                        Navigator.pushReplacementNamed(context, '/login');
+                      }
+                    }
+                  },
+                  icon: Icon(Icons.logout, size: 20 * textScale.clamp(1.0, 1.2)),
+                  label: Text(
+                    'Déconnexion',
+                    style: TextStyle(
+                      fontSize: 16 * textScale,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

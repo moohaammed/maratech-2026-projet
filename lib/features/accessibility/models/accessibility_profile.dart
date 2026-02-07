@@ -40,11 +40,25 @@ class AccessibilityProfile {
     final audio = data['audio'] ?? {};
     final motor = data['motor'] ?? {};
 
+    // Parse contrast mode - check for both 'high' and 'high_contrast' (wizard saves 'high_contrast')
+    final contrastMode = visual['contrastMode']?.toString() ?? 'standard';
+    final isHighContrast = contrastMode == 'high' || contrastMode == 'high_contrast';
+    
+    // Parse text size - handle both int (150) and double (1.5) formats
+    double textSize = 1.0;
+    final rawTextSize = visual['textSize'];
+    if (rawTextSize != null) {
+      if (rawTextSize is num) {
+        // If > 10, treat as percentage (e.g., 150 = 1.5)
+        textSize = rawTextSize > 10 ? rawTextSize / 100.0 : rawTextSize.toDouble();
+      }
+    }
+    
     return AccessibilityProfile(
       userId: id,
       visualNeeds: visual['needsCategory'] ?? 'normal',
-      textSize: (visual['textSize'] ?? 100) / 100.0,
-      highContrast: visual['contrastMode'] == 'high',
+      textSize: textSize,
+      highContrast: isHighContrast,
       boldText: visual['boldText'] ?? false,
       audioNeeds: audio['needsCategory'] ?? 'normal',
       vibrationEnabled: audio['vibrationEnabled'] ?? true,
@@ -80,5 +94,33 @@ class AccessibilityProfile {
       },
       'lastUpdated': FieldValue.serverTimestamp(),
     };
+  }
+
+  AccessibilityProfile copyWith({
+    String? userId,
+    String? visualNeeds,
+    double? textSize,
+    bool? highContrast,
+    bool? boldText,
+    String? audioNeeds,
+    bool? vibrationEnabled,
+    bool? visualNotifications,
+    String? motorNeeds,
+    bool? simplifiedGestures,
+    double? touchDuration,
+  }) {
+    return AccessibilityProfile(
+      userId: userId ?? this.userId,
+      visualNeeds: visualNeeds ?? this.visualNeeds,
+      textSize: textSize ?? this.textSize,
+      highContrast: highContrast ?? this.highContrast,
+      boldText: boldText ?? this.boldText,
+      audioNeeds: audioNeeds ?? this.audioNeeds,
+      vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
+      visualNotifications: visualNotifications ?? this.visualNotifications,
+      motorNeeds: motorNeeds ?? this.motorNeeds,
+      simplifiedGestures: simplifiedGestures ?? this.simplifiedGestures,
+      touchDuration: touchDuration ?? this.touchDuration,
+    );
   }
 }

@@ -98,6 +98,10 @@ class AccessibilityProvider with ChangeNotifier {
         try {
              _profile = AccessibilityProfile.fromMap(data, userId);
              debugPrint("✅ Loaded Accessibility Profile from Local Storage");
+             debugPrint("   📐 textSize: ${_profile.textSize}");
+             debugPrint("   🎨 highContrast: ${_profile.highContrast}");
+             debugPrint("   🔤 boldText: ${_profile.boldText}");
+             debugPrint("   👁️ visualNeeds: ${_profile.visualNeeds}");
         } catch(e) {
              debugPrint("⚠️ Error parsing local profile: $e");
         }
@@ -140,5 +144,13 @@ class AccessibilityProvider with ChangeNotifier {
           .doc(user.uid)
           .set(newProfile.toMap(), SetOptions(merge: true));
     }
+  }
+
+  // 🧹 CLEAR PROFILE (Logout)
+  Future<void> clearLocalProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('accessibility_profile_json');
+    _profile = AccessibilityProfile(userId: 'guest'); // Reset to default
+    notifyListeners();
   }
 }
