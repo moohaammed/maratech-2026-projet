@@ -277,18 +277,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
       
       if (mounted) {
-        // 3. Save Accessibility Profile to Firestore
+        // 3. Load Accessibility Profile (Prioritize Firestore, fallback to Wizard)
         final authProvider = Provider.of<AccessibilityProvider>(context, listen: false);
-        final currentProfile = authProvider.profile;
         
-        // Update profile with real UserID and save
-        final newProfile = currentProfile.copyWith(userId: userDoc.id);
-        await authProvider.updateProfile(newProfile);
-        debugPrint("✅ Saved accessibility profile for user: ${userDoc.id}");
+        // Ensure the provider knows who is logged in and fetches their specific data
+        await authProvider.loadProfile();
+        debugPrint("✅ Loaded accessibility profile for user: ${userDoc.id}");
 
         setState(() => _isLoading = false);
         
-        if (newProfile.visualNeeds == 'blind') {
+        // Check updated profile
+        final currentProfile = authProvider.profile;
+        if (currentProfile.visualNeeds == 'blind') {
           await _tts.speak('Connexion réussie! Bienvenue.');
         }
         
@@ -729,7 +729,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('SE CONNECTER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale, letterSpacing: 1)),
+                  Flexible(
+                    child: Text(
+                      'SE CONNECTER', 
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale, letterSpacing: 1),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
                   Container(
                     padding: EdgeInsets.all(4 * textScale.clamp(1.0, 1.2)),
@@ -755,11 +761,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 margin: const EdgeInsets.only(right: 16),
               ),
             ),
-            Text(
-              'Première fois?', 
-              style: TextStyle(
-                color: secondaryTextColor, 
-                fontSize: 13 * textScale,
+            Container(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: Text(
+                'Première fois?', 
+                style: TextStyle(
+                  color: secondaryTextColor, 
+                  fontSize: 13 * textScale,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(

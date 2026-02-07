@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/accessibility_service.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Ensure this is here due to explicit usage
+import '../accessibility/providers/accessibility_provider.dart';
+import '../accessibility/models/accessibility_profile.dart';
 
 /// Voice-First Accessibility Wizard with Language Selection
 /// 
@@ -458,6 +461,20 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     
     // Debug log
     debugPrint('✅ Accessibility Profile Saved locally: ${jsonEncode(profile)}');
+    
+    // Update Provider immediately so Login Screen reflects changes
+    if (mounted) {
+      try {
+        final profileObj = AccessibilityProfile.fromMap(profile, 'guest');
+        Provider.of<AccessibilityProvider>(context, listen: false).updateProfile(profileObj);
+        debugPrint('✅ Provider updated with new profile');
+        
+        // Ensure theme rebuilds if needed
+        // (Provider update triggers notifyListeners which rebuilds MaterialApp theme)
+      } catch (e) {
+        debugPrint('❌ Error updating provider from wizard: $e');
+      }
+    }
     
     await _accessibility.savePreferences();
     

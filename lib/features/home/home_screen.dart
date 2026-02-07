@@ -1212,9 +1212,9 @@ class _ProfileTab extends StatelessWidget {
                   onPressed: () async {
                     await FirebaseAuth.instance.signOut();
                     
-                    // Clear cached accessibility profile
+                    // Reset profile to local/wizard (Device Owner) settings
                     if (context.mounted) {
-                      await Provider.of<AccessibilityProvider>(context, listen: false).clearLocalProfile();
+                      await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
                       if (context.mounted) {
                         Navigator.pushReplacementNamed(context, '/login');
                       }

@@ -140,6 +140,7 @@ class AccessibilityService extends ChangeNotifier {
   Future<void> _initializeTts() async {
     try {
       await _tts.setLanguage(_currentLanguage.ttsCode);
+      await _tts.setLanguage(_currentLanguage.ttsCode); // Force current language (French default)
       await _tts.setSpeechRate(_speechRate);
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
@@ -541,6 +542,13 @@ class AccessibilityService extends ChangeNotifier {
 
   Future<void> setVisualNeeds(String needs) async {
     _visualNeeds = needs;
+    
+    // RESET first
+    _textScale = 1.0;
+    _highContrast = false;
+    _boldText = false;
+    // Don't reset voice guidance here, managed separately or by blind check below
+    
     if (needs == 'low_vision') {
       _textScale = 1.5;
       _highContrast = true;
@@ -549,6 +557,10 @@ class AccessibilityService extends ChangeNotifier {
       _voiceGuidanceEnabled = true;
       _voiceCommandsEnabled = true;
       _continuousListeningEnabled = true;
+      // Also enable visual aids for partially sighted users who identify as blind
+      _textScale = 1.5;
+      _highContrast = true;
+      _boldText = true;
     }
     notifyListeners();
     await savePreferences();
@@ -556,19 +568,36 @@ class AccessibilityService extends ChangeNotifier {
 
   Future<void> setAudioNeeds(String needs) async {
     _audioNeeds = needs;
+    
     if (needs == 'deaf') {
       _voiceGuidanceEnabled = false;
+    } else {
+        // Re-enable if returning to normal/hearing
+        _voiceGuidanceEnabled = true;
     }
+    
     notifyListeners();
     await savePreferences();
   }
 
   Future<void> setMotorNeeds(String needs) async {
     _motorNeeds = needs;
+    
     if (needs == 'limited_dexterity') {
       _voiceCommandsEnabled = true;
       _continuousListeningEnabled = true;
+    } else {
+        // Option: Disable voice commands if going back to normal?
+        // Or keep them enabled if user wants?
+        // For Wizard purposes, we likely want to revert to default (false) unless user manually toggled.
+        // But let's be safe and only enable for limited.
+        // User can manually toggle later in settings.
+        // Actually, let's leave it as is, or reset?
+        // Let's reset to match "Back to Normal" behavior.
+        _voiceCommandsEnabled = false;
+        _continuousListeningEnabled = false;
     }
+    
     notifyListeners();
     await savePreferences();
   }
