@@ -97,13 +97,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     
     if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
       await Future.delayed(const Duration(milliseconds: 800));
-      await _tts.speak(
-        _T(
-          "Écran de connexion. Pour vous connecter, dictez votre nom. Pour continuer en tant qu'invité, dites Invité ou appuyez en bas de l'écran.",
-          "Login screen. To login, say your name. To continue as guest, say Guest or tap at the bottom.",
-          "شاشة تسجيل الدخول. لتسجيل الدخول، قل اسمك. للمتابعة كضيف، قل ضيف أو اضغط في أسفل الشاشة."
-        )
+      
+      final welcomeMsg = _T(
+        "Bienvenue. Souhaitez-vous vous connecter ou continuer en tant qu'invité ?",
+        "Welcome. Would you like to login or continue as a guest?",
+        "مرحبًا. هل ترغب في تسجيل الدخول أو المتابعة كضيف؟"
       );
+      
+      await _tts.speak(welcomeMsg);
+      
+      // Wait for speech to finish before starting listener
+      Future.delayed(const Duration(milliseconds: 4500), () {
+        if (mounted) _listenForIntent();
+      });
     }
   }
 
@@ -143,6 +149,59 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _listenForIntent() async {
+    if (!_speechAvailable) {
+      debugPrint("Speech not available for intent");
+      return;
+    }
+    
+    await _tts.stop();
+    
+    setState(() {
+      _listeningField = 'intent';
+      _isListeningForName = true; // Visual cue
+    });
+
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          final words = result.recognizedWords.toLowerCase();
+          debugPrint("🎤 Choice: '$words'");
+          
+          if (result.finalResult) {
+            bool isLogin = words.contains('connecter') || words.contains('login') || 
+                          words.contains('membre') || words.contains('connexion') ||
+                          words.contains('تسجيل') || words.contains('دخول');
+                          
+            bool isGuest = words.contains('invité') || words.contains('guest') || 
+                          words.contains('ضيف') || words.contains('متابعة');
+
+            if (isLogin) {
+              _startVoiceInput('name');
+            } else if (isGuest) {
+              _speak(_T("D'accord, mode invité.", "Okay, guest mode.", "حسنًا، وضع الضيف."));
+              _continueAsGuest();
+            } else {
+              _speak(_T("Je n'ai pas compris. Veuillez dire Se Connecter ou Invité.", 
+                       "I didn't understand. Please say Login or Guest.", 
+                       "لم أفهم. يرجى قول تسجيل الدخول أو ضيف."));
+              Future.delayed(const Duration(seconds: 4), () {
+                 if (mounted) _listenForIntent();
+              });
+            }
+          }
+        },
+        listenFor: const Duration(seconds: 4),
+        pauseFor: const Duration(seconds: 2),
+        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
+        cancelOnError: true,
+      );
+    } catch (e) {
+      debugPrint("Intent Error: $e");
+      _stopVoiceInput();
+    }
+  }
+
   Future<void> _startVoiceInput(String field) async {
     if (!_speechAvailable) {
       _showErrorSnackBar('Reconnaissance vocale non disponible');
@@ -150,92 +209,102 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       return;
     }
     
-    // 1. STOP TTS immediately to prevent echo
+    // 1. Force stop everything first
     await _tts.stop();
+    if (_speech.isListening) {
+      await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
     
     setState(() {
       _listeningField = field;
       if (field == 'name') {
         _isListeningForName = true;
         _isListeningForPin = false;
+        _nameController.clear();
       } else {
         _isListeningForPin = true;
         _isListeningForName = false;
+        _pinController.clear();
       }
     });
     
-    // 2. Short prompt then listen
     final prompt = field == 'name' 
         ? _T('Quel est votre nom ?', 'What is your name?', 'ما هو اسمك؟') 
         : _T('Dites les 3 chiffres du code', 'Say the 3 digit code', 'قل أرقام الرمز الثلاثة');
+    
     await _tts.speak(prompt);
     
-    // Wait for the prompt to finish (Reduced delay)
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Wait for the prompt to finish + safety margin
+    // We wait 3 seconds to be absolutely sure the prompt is over
+    await Future.delayed(const Duration(milliseconds: 2500));
     
-    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final profile = accessibility.profile;
-    
+    if (!mounted) return;
+
     try {
+      debugPrint("🎤 Starting mic for $field...");
       await _speech.listen(
         onResult: (result) {
-          final words = result.recognizedWords.toLowerCase();
-          debugPrint("🎤 Heard: '$words'");
+          final words = result.recognizedWords.trim();
+          if (words.isEmpty) return;
           
-          // GUEST REDIRECT: Check for "invité" or "guest" or "arabe phonetic for guest"
-          if (words.contains('invité') || words.contains('guest') || words.contains('ضيف')) {
+          debugPrint("🎤 Heard ($field): '$words'");
+          
+          if (words.toLowerCase().contains('invité') || 
+              words.toLowerCase().contains('guest') || 
+              words.toLowerCase().contains('ضيف')) {
             _stopVoiceInput();
-            _speak(_T(
-              "Connexion en tant qu'invité",
-              "Continuing as guest",
-              "جارٍ تسجيل الدخول كضيف"
-            ));
-            
-            // Trigger the same logic as the guest button
+            _speak(_T("Connexion en tant qu'invité", "Continuing as guest", "جارٍ تسجيل الدخول كضيف"));
             _continueAsGuest();
             return;
           }
 
-          if (field == 'name') {
-            setState(() => _nameController.text = words);
-          } else {
-            final digits = words.replaceAll(RegExp(r'[^0-9]'), '');
-            if (digits.isNotEmpty) {
-              setState(() {
+          setState(() {
+            if (field == 'name') {
+              _nameController.text = words;
+              // Set cursor to end
+              _nameController.selection = TextSelection.fromPosition(
+                TextPosition(offset: _nameController.text.length),
+              );
+            } else {
+              final digits = words.replaceAll(RegExp(r'[^0-9]'), '');
+              if (digits.isNotEmpty) {
                 _pinController.text = digits.length > 3 ? digits.substring(0, 3) : digits;
-              });
+              }
             }
-          }
+          });
           
           if (result.finalResult) {
-            setState(() {
-              _isListeningForName = false;
-              _isListeningForPin = false;
-              _listeningField = '';
-            });
+            debugPrint("🎤 Final result for $field: '$words'");
+            _stopVoiceInput();
             
             if (field == 'name' && _nameController.text.isNotEmpty) {
-              _speak('Bonjour ${_nameController.text}. Maintenant, dites le code.');
-              _startVoiceInput('pin'); 
+              final name = _nameController.text;
+              _speak(_T('Bonjour $name. Maintenant, dites le code.', 
+                         'Hello $name. Now, say the code.',
+                         'مرحبًا $name. الآن، قل الرمز.'));
+              
+              // Delay before starting next field to let TTS finish
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) _startVoiceInput('pin');
+              });
             } else if (field == 'pin' && _pinController.text.length == 3) {
-              _speak('Code reçu. Connexion en cours...');
+              _speak(_T('Code reçu. Connexion en cours...', 
+                         'Code received. Logging in...', 
+                         'تم استلام الرمز. جارٍ تسجيل الدخول...'));
               _login();
             }
           }
         },
         listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 2), // Shorter pause detection
+        pauseFor: const Duration(seconds: 3),
         localeId: _T('fr-FR', 'en-US', 'ar-SA'),
         cancelOnError: true,
-        listenMode: ListenMode.dictation,
+        listenMode: ListenMode.confirmation, // Switching to confirmation for shorter inputs
       );
     } catch (e) {
-      debugPrint("❌ Voice Error: $e");
-      setState(() {
-        _isListeningForName = false;
-        _isListeningForPin = false;
-        _listeningField = '';
-      });
+      debugPrint("❌ Voice Error ($field): $e");
+      _stopVoiceInput();
       _speak(_T("Je n'ai pas compris. Veuillez réessayer.", "I didn't understand. Please retry.", "لم أفهم. يرجى المحاولة مرة أخرى."));
     }
   }

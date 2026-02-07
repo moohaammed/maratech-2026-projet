@@ -10,7 +10,7 @@ class CoachDashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: const EventListScreen(canCreate: true),
+      body: const EventListScreen(canCreate: true, hideAppBar: true),
       appBar: AppBar(
         title: const Text('Espace Coach', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.primary,

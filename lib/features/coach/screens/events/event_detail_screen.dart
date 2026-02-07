@@ -1,26 +1,127 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../../admin/models/user_model.dart';
+import '../../../accessibility/providers/accessibility_provider.dart';
 
-class EventDetailScreen extends StatelessWidget {
+class EventDetailScreen extends StatefulWidget {
   final String eventId;
 
   const EventDetailScreen({super.key, required this.eventId});
+
+  @override
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
+}
+
+class _EventDetailScreenState extends State<EventDetailScreen> {
+  final FlutterTts _tts = FlutterTts();
+  bool _hasSpoken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _initTts() async {
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final langCode = accessibility.languageCode;
+    
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    
+    await _tts.setLanguage(ttsCode);
+    await _tts.setSpeechRate(0.5);
+    await _tts.setVolume(1.0);
+    await _tts.setPitch(1.0);
+  }
+
+  String _T(String fr, String en, String ar) {
+    final lang = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
+    switch (lang) {
+      case 'ar': return ar;
+      case 'en': return en;
+      default: return fr;
+    }
+  }
+
+  Future<void> _speakEvent(EventModel event) async {
+    if (_hasSpoken) return;
+    
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    if (accessibility.profile.visualNeeds != 'blind' && accessibility.profile.visualNeeds != 'low_vision') {
+      debugPrint('🔇 Voice guidance skipped: visualNeeds is ${accessibility.profile.visualNeeds}');
+      return;
+    }
+
+    _hasSpoken = true;
+    final lang = accessibility.languageCode;
+    debugPrint('🗣️ Speaking event details in $lang');
+
+    // Small delay to let the screen transition finish
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Ensure language is set before each speak to be safe
+    String ttsCode = 'fr-FR';
+    if (lang == 'ar') ttsCode = 'ar-SA';
+    if (lang == 'en') ttsCode = 'en-US';
+    await _tts.setLanguage(ttsCode);
+    String text = '';
+    if (lang == 'ar') {
+      text = "تفاصيل الفعالية. العنوان: ${event.title}. "
+             "التاريخ: ${_formatDate(event.date)}. "
+             "الوقت: ${event.time}. "
+             "المكان: ${event.location}. "
+             "${event.distanceKm != null ? 'المسافة: ${event.distanceKm} كيلومتر.' : ''} "
+             "النوع: ${event.typeDisplayName}. "
+             "المجموعة: ${event.groupDisplayName}. "
+             "${event.description != null ? 'الوصف: ${event.description}' : ''}";
+    } else if (lang == 'en') {
+      text = "Event details. Title: ${event.title}. "
+             "Date: ${_formatDate(event.date)}. "
+             "Time: ${event.time}. "
+             "Location: ${event.location}. "
+             "${event.distanceKm != null ? 'Distance: ${event.distanceKm} kilometers.' : ''} "
+             "Type: ${event.typeDisplayName}. "
+             "Group: ${event.groupDisplayName}. "
+             "${event.description != null ? 'Description: ${event.description}' : ''}";
+    } else {
+      text = "Détails de l'événement. Titre : ${event.title}. "
+             "Date : ${_formatDate(event.date)}. "
+             "Heure : ${event.time}. "
+             "Lieu : ${event.location}. "
+             "${event.distanceKm != null ? 'Distance : ${event.distanceKm} kilomètres.' : ''} "
+             "Type : ${event.typeDisplayName}. "
+             "Groupe : ${event.groupDisplayName}. "
+             "${event.description != null ? 'Description : ${event.description}' : ''}";
+    }
+
+    await _tts.speak(text);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Détail de l\'événement', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_T('Détail de l\'événement', 'Event Detail', 'تفاصيل الفعالية'), 
+                   style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: FutureBuilder<EventModel?>(
-        future: EventService().getEventById(eventId),
+        future: EventService().getEventById(widget.eventId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -33,7 +134,7 @@ class EventDetailScreen extends StatelessWidget {
                   Icon(Icons.error_outline, size: 48, color: AppColors.error),
                   const SizedBox(height: 16),
                   Text(
-                    snapshot.hasError ? 'Erreur: ${snapshot.error}' : 'Événement introuvable',
+                    snapshot.hasError ? 'Erreur: ${snapshot.error}' : _T('Événement introuvable', 'Event not found', 'الفعالية غير موجودة'),
                     style: const TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
@@ -42,6 +143,12 @@ class EventDetailScreen extends StatelessWidget {
             );
           }
           final event = snapshot.data!;
+          
+          // Speak content if accessibility is enabled
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _speakEvent(event);
+          });
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -49,20 +156,20 @@ class EventDetailScreen extends StatelessWidget {
               children: [
                 _buildHeader(context, event),
                 const SizedBox(height: 20),
-                _buildSection('Informations', [
-                  _infoRow(Icons.calendar_today, 'Date', _formatDate(event.date)),
-                  _infoRow(Icons.access_time, 'Heure', event.time),
-                  _infoRow(Icons.location_on, 'Lieu', event.location),
+                _buildSection(_T('Informations', 'Information', 'معلومات'), [
+                  _infoRow(Icons.calendar_today, _T('Date', 'Date', 'التاريخ'), _formatDate(event.date)),
+                  _infoRow(Icons.access_time, _T('Heure', 'Time', 'الوقت'), event.time),
+                  _infoRow(Icons.location_on, _T('Lieu', 'Location', 'المكان'), event.location),
                   if (event.distanceKm != null)
-                    _infoRow(Icons.straighten, 'Distance', '${event.distanceKm} km'),
-                  _infoRow(Icons.category, 'Type', event.typeDisplayName),
+                    _infoRow(Icons.straighten, _T('Distance', 'Distance', 'المسافة'), '${event.distanceKm} km'),
+                  _infoRow(Icons.category, _T('Type', 'Type', 'النوع'), event.typeDisplayName),
                   if (event.weeklySubType != null)
-                    _infoRow(Icons.directions_run, 'Sous-type', event.weeklySubTypeDisplayName),
-                  _infoRow(Icons.group, 'Groupe', event.groupDisplayName),
+                    _infoRow(Icons.directions_run, _T('Sous-type', 'Sub-type', 'النوع الفرعي'), event.weeklySubTypeDisplayName),
+                  _infoRow(Icons.group, _T('Groupe', 'Group', 'المجموعة'), event.groupDisplayName),
                 ]),
                 if (event.description != null && event.description!.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  _buildSection('Description', [
+                  _buildSection(_T('Description', 'Description', 'الوصف'), [
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
@@ -226,7 +333,20 @@ class EventDetailScreen extends StatelessWidget {
   }
 
   String _formatDate(DateTime d) {
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    final months = [
+      _T('Jan', 'Jan', 'جانفي'),
+      _T('Fév', 'Feb', 'فيفري'),
+      _T('Mar', 'Mar', 'مارس'),
+      _T('Avr', 'Apr', 'أفريل'),
+      _T('Mai', 'May', 'ماي'),
+      _T('Juin', 'Jun', 'جوان'),
+      _T('Juil', 'Jul', 'جويلية'),
+      _T('Août', 'Aug', 'أوت'),
+      _T('Sep', 'Sep', 'سبتمبر'),
+      _T('Oct', 'Oct', 'أكتوبر'),
+      _T('Nov', 'Nov', 'نوفمبر'),
+      _T('Déc', 'Dec', 'ديسمبر'),
+    ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 }
