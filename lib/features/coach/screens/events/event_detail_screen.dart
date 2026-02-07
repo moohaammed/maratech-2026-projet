@@ -1,3 +1,5 @@
+import 'package:url_launcher/url_launcher.dart';
+import 'package:add_2_calendar/add_2_calendar.dart' as calendar;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
@@ -52,6 +54,61 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       case 'ar': return ar;
       case 'en': return en;
       default: return fr;
+    }
+  }
+
+  Future<void> _openMap(String location) async {
+    final query = Uri.encodeComponent(location);
+    final googleUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$query");
+    
+    try {
+      if (await canLaunchUrl(googleUrl)) {
+        await launchUrl(googleUrl, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text(_T('Impossible d\'ouvrir la carte', 'Could not open map', 'تعذر فتح الخريطة'))),
+           );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching map: $e');
+    }
+  }
+
+  Future<void> _addToCalendar(EventModel event) async {
+    try {
+      // Parse time
+      final timeParts = event.time.split(':');
+      final hour = int.tryParse(timeParts[0]) ?? 0;
+      final minute = int.tryParse(timeParts[1]) ?? 0;
+      
+      final startDate = DateTime(
+        event.date.year,
+        event.date.month,
+        event.date.day,
+        hour,
+        minute,
+      );
+      final endDate = startDate.add(const Duration(hours: 2)); // Assume 2h duration
+
+      final calendarEvent = calendar.Event(
+        title: event.title,
+        description: event.description ?? '',
+        location: event.location,
+        startDate: startDate,
+        endDate: endDate,
+        allDay: false,
+      );
+
+      await calendar.Add2Calendar.addEvent2Cal(calendarEvent);
+    } catch (e) {
+      debugPrint('Error adding to calendar: $e');
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text(_T('Erreur calendrier', 'Calendar error', 'خطأ في التقويم'))),
+         );
+      }
     }
   }
 
@@ -155,6 +212,40 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(context, event),
+                const SizedBox(height: 16),
+                
+                // Quick Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openMap(event.location),
+                        icon: const Icon(Icons.map, size: 20),
+                        label: Text(_T('Carte', 'Map', 'خريطة')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.primary,
+                          elevation: 1,
+                          side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _addToCalendar(event),
+                        icon: const Icon(Icons.calendar_month, size: 20),
+                        label: Text(_T('Agenda', 'Add', 'إضافة')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
                 const SizedBox(height: 20),
                 _buildSection(_T('Informations', 'Information', 'معلومات'), [
                   _infoRow(Icons.calendar_today, _T('Date', 'Date', 'التاريخ'), _formatDate(event.date)),

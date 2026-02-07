@@ -949,7 +949,111 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ),
+        SizedBox(height: 24),
+        // DEBUG BUTTON for Test Event
+        TextButton(
+          onPressed: _createTestEvent,
+          child: Text(
+            "🛠️ Créer Test Event (+30 min)",
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _createTestEvent() async {
+    setState(() => _isLoading = true);
+    try {
+      final now = DateTime.now();
+      final eventDate = now.add(const Duration(minutes: 30));
+      final endDate = eventDate.add(const Duration(minutes: 90)); // 90 min duration
+
+      final startHour = eventDate.hour.toString().padLeft(2, '0');
+      final startMin = eventDate.minute.toString().padLeft(2, '0');
+      final endHour = endDate.hour.toString().padLeft(2, '0');
+      final endMin = endDate.minute.toString().padLeft(2, '0');
+
+      final eventData = {
+        "accessibility": {
+          "audioGuidanceAvailable": true,
+          "buddySystemAvailable": true,
+          "signLanguageSupport": false,
+          "visualGuidanceAvailable": true,
+          "wheelchairAccessible": false,
+        },
+        "category": "tempo",
+        "createdAt": FieldValue.serverTimestamp(),
+        "createdBy": "HFQxwxxNGEfJhmqvOcuw69m9KMT2",
+        "creatorName": "test admin",
+        "creatorRole": "main_admin",
+        "date": Timestamp.fromDate(eventDate),
+        "description": "15 min warmup, 10K tempo at race pace, 10 min cooldown",
+        "descriptionAr": "15 دقيقة إحماء، 10 كم إيقاع سريع، 10 دقائق استرخاء",
+        "duration": 90,
+        "endTime": "$endHour:$endMin",
+        "groupColor": "#FFC107",
+        "groupId": "intermediate",
+        "groupName": "Intermédiaires",
+        "intensity": "high",
+        "isAllGroups": false,
+        "isCancelled": false,
+        "isFeatured": true,
+        "isPinned": false,
+        "maxParticipants": 40,
+        "meetingPoint": {
+          "address": "Avenue de la Ligue Arabe, Tunis",
+          "coordinates": {
+            "latitude": 36.835,
+            "longitude": 10.21,
+          },
+          "name": "Lac de Tunis - Entrée Sud",
+          "nameAr": "بحيرة تونس - المدخل الجنوبي",
+        },
+        "parkingAvailable": true,
+        "publicTransport": [
+          "Bus 20",
+          "Metro Ligne 5"
+        ],
+        "participantCount": 0,
+        "participants": [
+          "JVURI4eq75etttrHAEDEBD5gTGb2"
+        ],
+        "publishedAt": FieldValue.serverTimestamp(),
+        "route": {
+          "difficulty": "moderate",
+          "distance": 12,
+          "elevation": 50,
+          "routeDescription": "Flat course around the lake, 3 loops of 4km each",
+          "routeDescriptionAr": "مسار مستو حول البحيرة، 3 دورات من 4 كم لكل منها",
+          "terrain": "paved",
+        },
+        "startTime": "$startHour:$startMin",
+        "status": "upcoming",
+        "targetPace": "5:45",
+        "title": "Morning Tempo Run",
+        "titleAr": "جري الإيقاع الصباحي",
+        "type": "daily",
+        "updatedAt": FieldValue.serverTimestamp(),
+        "waitlist": [],
+      };
+
+      await FirebaseFirestore.instance.collection('events').add(eventData);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Événement de test créé pour dans 30 min !"), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error creating test event: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 }
