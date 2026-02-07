@@ -315,12 +315,18 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   void _selectVisual(String needs) {
     setState(() {
       _visualNeeds = needs;
-      if (needs == 'low_vision') {
+      if (needs == 'normal') {
+        // Reset all visual settings to defaults
+        _textScale = 1.0;
+        _highContrast = false;
+        _boldText = false;
+      } else if (needs == 'low_vision') {
         _textScale = 1.5;
         _highContrast = true;
         _boldText = true;
       } else if (needs == 'blind') {
         _highContrast = true; // Use simple high contrast for any UI remnants
+        _boldText = true;
         // Enable full talkback simulation
         _accessibility.setVoiceCommands(true); 
       }
