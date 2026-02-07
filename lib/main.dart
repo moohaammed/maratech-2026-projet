@@ -3,8 +3,27 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-// TODO: replace with your generated firebase options if using flutterfire configure
-// import 'firebase_options.dart';
+// Screens
+import 'features/splash/splash_screen.dart';
+import 'features/onboarding/accessibility_wizard_screen.dart';
+import 'features/auth/login_screen.dart';
+import 'features/home/home_screen.dart';
+import 'features/admin/screens/admin_dashboard_screen.dart';
+import 'features/admin/screens/fcm_test_screen.dart';
+import 'features/guest/screens/guest_home_screen.dart';
+import 'features/notifications/screens/notification_screen.dart';
+import 'features/coach/screens/events/event_detail_screen.dart';
+import 'features/coach/screens/coach_dashboard_screen.dart';
+import 'features/chat/screens/group_chat_screen.dart';
+
+// Theme
+import 'core/theme/app_theme.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Handling a background message: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -590,245 +609,62 @@ class AdminUsersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final q = FirebaseFirestore.instance.collection('users').limit(50);
+    // Watch the accessibility provider for changes
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: q.snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final docs = snap.data!.docs;
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) {
-            final u = docs[i].data();
-            return Card(
-              child: ListTile(
-                title: Text((u['fullName'] ?? '-') as String),
-                subtitle: Text('role: ${u['role']} • active: ${u['isActive']}'),
-              ),
-            );
-          },
-        );
+    // Build dynamic theme based on accessibility settings
+    ThemeData theme;
+    if (profile.highContrast) {
+      theme = AppTheme.highContrastTheme(
+        textScale: profile.textSize,
+        boldText: profile.boldText,
+        isDyslexic: profile.dyslexicMode,
+      );
+    } else {
+      theme = AppTheme.lightTheme(
+        textScale: profile.textSize,
+        boldText: profile.boldText,
+        isDyslexic: profile.dyslexicMode,
+      );
+    }
+
+    return MaterialApp(
+      navigatorKey: NotificationService.navigatorKey,
+      locale: Locale(accessibility.languageCode),
+      supportedLocales: const [Locale('fr'), Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      title: 'RCT',
+      debugShowCheckedModeBanner: false,
+      theme: theme,
+      
+      // Start with splash screen
+      initialRoute: '/',
+      
+      // Define routes
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/accessibility-wizard': (context) => const AccessibilityWizardScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/admin-dashboard': (context) => const AdminDashboardScreen(),
+        '/guest-home': (context) => const GuestHomeScreen(),
+        '/notifications': (context) => const NotificationScreen(),
+        '/coach-dashboard': (context) => const CoachDashboardScreen(),
+        '/group-chat': (context) => const GroupChatScreen(),
       },
-    );
-  }
-}
-
-/* ===========================
-   CREATE FORMS (Admin)
-=========================== */
-
-class CreateEventScreen extends StatefulWidget {
-  const CreateEventScreen({super.key});
-
-  @override
-  State<CreateEventScreen> createState() => _CreateEventScreenState();
-}
-
-class _CreateEventScreenState extends State<CreateEventScreen> {
-  final titleCtrl = TextEditingController();
-  final descCtrl = TextEditingController();
-  final groupCtrl = TextEditingController(text: 'g1');
-  String type = 'DAILY';
-  DateTime selected = DateTime.now().add(const Duration(hours: 2));
-
-  @override
-  void dispose() {
-    titleCtrl.dispose();
-    descCtrl.dispose();
-    groupCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> create() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    await FirebaseFirestore.instance.collection('events').add({
-      'title': titleCtrl.text.trim(),
-      'description': descCtrl.text.trim(),
-      'type': type,
-      'groupId': groupCtrl.text.trim(),
-      'dateTimeStart': Timestamp.fromDate(selected),
-      'location': {'name': 'À définir', 'lat': 0, 'lng': 0},
-      'createdBy': uid,
-      'createdAt': FieldValue.serverTimestamp(),
-      'isPublic': false,
-      'status': 'PUBLISHED',
-    });
-
-    if (mounted) Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Créer un événement')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Titre')),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: type,
-            items: const [
-              DropdownMenuItem(value: 'DAILY', child: Text('DAILY')),
-              DropdownMenuItem(value: 'WEEKLY', child: Text('WEEKLY')),
-              DropdownMenuItem(value: 'SPECIAL', child: Text('SPECIAL')),
-            ],
-            onChanged: (v) => setState(() => type = v ?? 'DAILY'),
-            decoration: const InputDecoration(labelText: 'Type'),
-          ),
-          const SizedBox(height: 12),
-          TextField(controller: groupCtrl, decoration: const InputDecoration(labelText: 'groupId (ex: g1)')),
-          const SizedBox(height: 12),
-          TextField(
-            controller: descCtrl,
-            maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Description'),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            title: Text('Date/Heure: ${selected.toString()}'),
-            trailing: const Icon(Icons.calendar_today),
-            onTap: () async {
-              final date = await showDatePicker(
-                context: context,
-                firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-                initialDate: selected,
-              );
-              if (date == null) return;
-
-              final time = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.fromDateTime(selected),
-              );
-              if (time == null) return;
-
-              setState(() => selected = DateTime(date.year, date.month, date.day, time.hour, time.minute));
-            },
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: create,
-            child: const Text('Créer'),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class CreateProgramScreen extends StatefulWidget {
-  const CreateProgramScreen({super.key});
-
-  @override
-  State<CreateProgramScreen> createState() => _CreateProgramScreenState();
-}
-
-class _CreateProgramScreenState extends State<CreateProgramScreen> {
-  final groupCtrl = TextEditingController(text: 'g1');
-  final weekCtrl = TextEditingController(text: '2026-02-03');
-
-  final mondayCtrl = TextEditingController(text: '6km easy + éducatifs');
-  final wedCtrl = TextEditingController(text: '8x400m fractionné');
-  final friCtrl = TextEditingController(text: '10km progressif');
-  final sunCtrl = TextEditingController(text: 'Sortie longue 16km');
-
-  @override
-  void dispose() {
-    groupCtrl.dispose();
-    weekCtrl.dispose();
-    mondayCtrl.dispose();
-    wedCtrl.dispose();
-    friCtrl.dispose();
-    sunCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> create() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    await FirebaseFirestore.instance.collection('programs').add({
-      'coachId': uid,
-      'groupId': groupCtrl.text.trim(),
-      'weekStart': weekCtrl.text.trim(),
-      'content': {
-        'monday': mondayCtrl.text.trim(),
-        'wednesday': wedCtrl.text.trim(),
-        'friday': friCtrl.text.trim(),
-        'sunday': sunCtrl.text.trim(),
-      },
-      'status': 'PUBLISHED',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    if (mounted) Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Créer programme')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(controller: groupCtrl, decoration: const InputDecoration(labelText: 'groupId (ex: g1)')),
-          const SizedBox(height: 12),
-          TextField(controller: weekCtrl, decoration: const InputDecoration(labelText: 'weekStart (YYYY-MM-DD)')),
-          const SizedBox(height: 12),
-          TextField(controller: mondayCtrl, decoration: const InputDecoration(labelText: 'monday')),
-          const SizedBox(height: 12),
-          TextField(controller: wedCtrl, decoration: const InputDecoration(labelText: 'wednesday')),
-          const SizedBox(height: 12),
-          TextField(controller: friCtrl, decoration: const InputDecoration(labelText: 'friday')),
-          const SizedBox(height: 12),
-          TextField(controller: sunCtrl, decoration: const InputDecoration(labelText: 'sunday')),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: create, child: const Text('Publier')),
-        ],
-      ),
-    );
-  }
-}
-
-/* ===========================
-   POSTS (Public)
-=========================== */
-
-class PublicPostsScreen extends StatelessWidget {
-  const PublicPostsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final q = FirebaseFirestore.instance
-        .collection('posts')
-        .where('isPublic', isEqualTo: true)
-        .limit(50);
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: q.snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final docs = snap.data!.docs;
-        if (docs.isEmpty) return const Center(child: Text("Aucune news pour le moment."));
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) {
-            final d = docs[i].data();
-            return Card(
-              child: ListTile(
-                title: Text((d['title'] ?? '-') as String),
-                subtitle: Text((d['type'] ?? '-') as String),
-              ),
-            );
-          },
-        );
+      onGenerateRoute: (settings) {
+        if (settings.name == '/event-details') {
+          final eventId = settings.arguments as String?;
+          return MaterialPageRoute(
+            builder: (context) => EventDetailScreen(eventId: eventId ?? ''),
+          );
+        }
+        return null;
       },
     );
   }

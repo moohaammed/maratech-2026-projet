@@ -11,6 +11,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/ai_coach_widget.dart';
 import '../../core/services/accessibility_service.dart';
+import '../chat/widgets/chat_badge_button.dart';
 
 // Translation Helper
 String _T(BuildContext context, String fr, String en, String ar) {
@@ -355,6 +356,7 @@ class _HomeTabState extends State<_HomeTab> {
     final textColor = highContrast ? Colors.white : AppColors.textPrimary;
     final secondaryTextColor = highContrast ? Colors.white70 : AppColors.textSecondary;
     final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final secondaryColor = highContrast ? AppColors.highContrastSecondary : AppColors.secondary;
     
     final userName = _userData?['fullName'] ?? _userData?['name'] ?? 'Membre';
     final firstName = userName.split(' ').first;
@@ -365,9 +367,22 @@ class _HomeTabState extends State<_HomeTab> {
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
         foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: highContrast ? 0 : 2,
+        leading: Builder(
+          builder: (context) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 12.0), // Descend l'icône
+              child: ChatBadgeButton(
+                iconColor: highContrast ? primaryColor : Colors.white,
+                onPressed: () => Navigator.pushNamed(context, '/group-chat'),
+              ),
+            );
+          }
+        ),
+        centerTitle: true,
         title: InkWell(
           onTap: () => _speak(_T(context, "RCT. Appuyez pour écouter.", "RCT. Tap to listen.", "RCT. اضغط للاستماع.")),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
                 'assets/logo.jpg',
@@ -1881,6 +1896,7 @@ class _ClubTab extends StatelessWidget {
                         color: secondaryTextColor,
                         fontStyle: FontStyle.italic,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],
