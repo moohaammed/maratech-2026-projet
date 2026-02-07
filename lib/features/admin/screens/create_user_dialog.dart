@@ -22,6 +22,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
   final _pinController = TextEditingController();
 
   UserRole _selectedRole = UserRole.member;
+  RunningGroup? _selectedGroup;
   bool _isLoading = false;
 
   @override
@@ -89,6 +90,21 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   onChanged: (value) => setState(() => _selectedRole = value!),
                 ),
                 
+                if (!widget.isAdminMode) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<RunningGroup>(
+                    decoration: const InputDecoration(
+                      labelText: 'Groupe (Classique)',
+                      prefixIcon: Icon(Icons.group),
+                    ),
+                    items: RunningGroup.values.map((g) => DropdownMenuItem(
+                      value: g, 
+                      child: Text('Groupe ${g.toString().split('.').last.replaceAll('group', '')}')
+                    )).toList(),
+                    onChanged: (val) => setState(() => _selectedGroup = val),
+                  ),
+                ],
+                
                 const SizedBox(height: 32),
                 
                 Row(
@@ -137,13 +153,11 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Create Auth
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: "000${_pinController.text.trim()}",
       );
       
-      // 2. Create Firestore Doc
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final user = UserModel(
         id: uid,
@@ -152,6 +166,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
         phone: _phoneController.text.trim(),
         cinLastDigits: _pinController.text.trim(),
         role: _selectedRole,
+        assignedGroup: _selectedGroup,
         createdAt: DateTime.now(),
         permissions: UserModel.getDefaultPermissions(_selectedRole),
       );

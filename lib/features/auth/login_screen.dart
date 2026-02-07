@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -804,6 +805,34 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
           style: TextButton.styleFrom(foregroundColor: primaryColor),
+        ),
+        SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final isConfigured = prefs.getBool('onboarding_wizard_completed') ?? false;
+            
+            if (isConfigured) {
+              Navigator.pushReplacementNamed(context, '/guest-home');
+            } else {
+              Navigator.pushReplacementNamed(
+                context, 
+                '/accessibility-wizard',
+                arguments: {'target': '/guest-home'}
+              );
+            }
+          },
+          icon: Icon(Icons.person_outline, size: 18 * textScale.clamp(1.0, 1.2)),
+          label: Text(
+            'Continuer en tant qu\'invité',
+            style: TextStyle(fontSize: 14 * textScale, fontWeight: FontWeight.bold),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: primaryColor,
+            side: BorderSide(color: primaryColor, width: highContrast ? 2 : 1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
         ),
       ],
     );

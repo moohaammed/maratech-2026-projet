@@ -371,8 +371,18 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
       setState(() => _currentStep++);
       _announceStep();
     } else {
-      _goToLogin();
+      _goToTarget();
     }
+  }
+
+  void _goToTarget() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final target = args?['target'] as String? ?? '/login';
+    
+    _accessibility.stopContinuousListening();
+    _accessibility.speak(_selectedLanguage.code == 'en' ? "Let's go!" : "Allons-y!");
+    _accessibility.vibrateSuccess();
+    Navigator.pushReplacementNamed(context, target);
   }
 
   void _previousStep() {
@@ -495,15 +505,14 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   }
 
   void _skipToLogin() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final target = args?['target'] as String? ?? '/login';
     _accessibility.speak(_selectedLanguage.code == 'en' ? "Skipping." : "Passage.");
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushReplacementNamed(context, target);
   }
 
   void _goToLogin() {
-    _accessibility.stopContinuousListening();
-    _accessibility.speak(_selectedLanguage.code == 'en' ? "Let's go!" : "Allons-y!");
-    _accessibility.vibrateSuccess();
-    Navigator.pushReplacementNamed(context, '/login');
+    _goToTarget();
   }
 
   @override

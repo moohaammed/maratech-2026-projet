@@ -24,6 +24,7 @@ class UserModel {
   final String cinLastDigits; // 3 derniers chiffres du CIN
   final UserRole role;
   final RunningGroup? assignedGroup;
+  final String? assignedGroupId; // ID of dynamic group
   final DateTime createdAt;
   final DateTime? lastLogin;
   final bool isActive;
@@ -37,6 +38,7 @@ class UserModel {
     required this.cinLastDigits,
     required this.role,
     this.assignedGroup,
+    this.assignedGroupId,
     required this.createdAt,
     this.lastLogin,
     this.isActive = true,
@@ -112,21 +114,24 @@ class UserModel {
     final data = doc.data() as Map<String, dynamic>;
     return UserModel(
       id: doc.id,
-      fullName: data['fullName'] ?? '',
+      fullName: data['fullName'] ?? data['name'] ?? '',
       email: data['email'] ?? '',
       phone: data['phone'] ?? '',
       cinLastDigits: data['cinLastDigits'] ?? '',
       role: UserRole.values.firstWhere(
-        (e) => e.toString() == data['role'],
+        (e) => e.toString() == data['role'] || e.name == data['role'],
         orElse: () => UserRole.visitor,
       ),
       assignedGroup: data['assignedGroup'] != null
           ? RunningGroup.values.firstWhere(
-              (e) => e.toString() == data['assignedGroup'],
+              (e) => e.toString() == data['assignedGroup'] || e.name == data['assignedGroup'],
               orElse: () => RunningGroup.group1,
             )
           : null,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      assignedGroupId: data['assignedGroupId']?.toString(),
+      createdAt: data['createdAt'] is Timestamp 
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
       lastLogin: data['lastLogin'] != null
           ? (data['lastLogin'] as Timestamp).toDate()
           : null,
@@ -143,6 +148,7 @@ class UserModel {
       'cinLastDigits': cinLastDigits,
       'role': role.toString(),
       'assignedGroup': assignedGroup?.toString(),
+      'assignedGroupId': assignedGroupId,
       'createdAt': Timestamp.fromDate(createdAt),
       'lastLogin': lastLogin != null ? Timestamp.fromDate(lastLogin!) : null,
       'isActive': isActive,
@@ -157,6 +163,7 @@ class UserModel {
     String? cinLastDigits,
     UserRole? role,
     RunningGroup? assignedGroup,
+    String? assignedGroupId,
     DateTime? lastLogin,
     bool? isActive,
     Map<String, bool>? permissions,
@@ -169,6 +176,7 @@ class UserModel {
       cinLastDigits: cinLastDigits ?? this.cinLastDigits,
       role: role ?? this.role,
       assignedGroup: assignedGroup ?? this.assignedGroup,
+      assignedGroupId: assignedGroupId ?? this.assignedGroupId,
       createdAt: createdAt,
       lastLogin: lastLogin ?? this.lastLogin,
       isActive: isActive ?? this.isActive,
@@ -192,6 +200,7 @@ class UserModel {
   }
 
   String getGroupDisplayName() {
+    if (assignedGroupId != null) return 'Groupe Dynamique';
     if (assignedGroup == null) return 'Aucun groupe';
     switch (assignedGroup!) {
       case RunningGroup.group1:

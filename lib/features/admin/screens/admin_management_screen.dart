@@ -21,7 +21,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreateAdminDialog(context),
-        backgroundColor: AppColors.error, // Red for Admin
+        backgroundColor: AppColors.error,
         child: const Icon(Icons.add_moderator),
       ),
       body: StreamBuilder<List<UserModel>>(

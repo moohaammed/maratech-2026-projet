@@ -6,7 +6,16 @@ import 'create_user_dialog.dart';
 import 'edit_user_dialog.dart';
 
 class UserManagementScreen extends StatefulWidget {
-  const UserManagementScreen({super.key});
+  final String? filterGroupId;
+  final RunningGroup? filterGroup;
+  final bool readOnly;
+
+  const UserManagementScreen({
+    super.key, 
+    this.filterGroupId,
+    this.filterGroup,
+    this.readOnly = false,
+  });
 
   @override
   State<UserManagementScreen> createState() => _UserManagementScreenState();
@@ -20,14 +29,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: widget.readOnly ? null : FloatingActionButton(
         onPressed: () => _showCreateUserDialog(),
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
-          // Search Bar
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -45,7 +53,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
           ),
           
-          // Users List
           Expanded(
             child: StreamBuilder<List<UserModel>>(
               stream: _userService.getAllUsersStream(),
@@ -61,9 +68,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 final users = snapshot.data ?? [];
                 final filteredUsers = users.where((user) {
                   final query = _searchQuery.toLowerCase();
-                  return (user.fullName.toLowerCase().contains(query) ||
-                          user.email.toLowerCase().contains(query)) &&
-                         (user.role == UserRole.member || user.role == UserRole.visitor);
+                  final matchesSearch = (user.fullName.toLowerCase().contains(query) ||
+                          user.email.toLowerCase().contains(query));
+                  
+                  bool matchesGroup = true;
+                  if (widget.filterGroupId != null) {
+                    matchesGroup = user.assignedGroupId == widget.filterGroupId;
+                  } else if (widget.filterGroup != null) {
+                    matchesGroup = user.assignedGroup == widget.filterGroup;
+                  }
+
+                  final isMemberOrVisitor = (user.role == UserRole.member || user.role == UserRole.visitor);
+                  
+                  return matchesSearch && matchesGroup && isMemberOrVisitor;
                 }).toList();
                 
                 if (filteredUsers.isEmpty) {
@@ -111,6 +128,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               children: [
                                 _buildRoleBadge(user.role),
                                 const SizedBox(width: 8),
+                                _buildGroupBadge(user),
+                                const SizedBox(width: 8),
                                 if (!user.isActive)
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -126,7 +145,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             ),
                           ],
                         ),
-                        trailing: PopupMenuButton(
+                        trailing: widget.readOnly ? null : PopupMenuButton(
                           icon: const Icon(Icons.more_vert),
                           itemBuilder: (context) => [
                             const PopupMenuItem(value: 'edit', child: Text('Modifier')),
@@ -184,6 +203,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         label,
         style: TextStyle(
           color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupBadge(UserModel user) {
+    if (user.assignedGroupId == null && user.assignedGroup == null) return const SizedBox.shrink();
+    
+    final label = user.getGroupDisplayName();
+    final isDynamic = user.assignedGroupId != null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: (isDynamic ? Colors.purple : Colors.orange).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: (isDynamic ? Colors.purple : Colors.orange).withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isDynamic ? Colors.purple : Colors.orange,
           fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
