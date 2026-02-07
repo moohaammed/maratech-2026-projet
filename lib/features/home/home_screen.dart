@@ -30,8 +30,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final profile = Provider.of<AccessibilityProvider>(context).profile;
-    _updateTTSLanguage(profile.languageCode);
+    _syncLanguage();
+  }
+
+  Future<void> _syncLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('languageCode');
+    if (langCode != null) _updateTTSLanguage(langCode);
   }
 
   Future<void> _updateTTSLanguage(String langCode) async {
@@ -153,8 +158,13 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final profile = Provider.of<AccessibilityProvider>(context).profile;
-    _updateTTSLanguage(profile.languageCode);
+    _syncLanguage();
+  }
+
+  Future<void> _syncLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('languageCode');
+    if (langCode != null) _updateTTSLanguage(langCode);
   }
 
   Future<void> _updateTTSLanguage(String langCode) async {

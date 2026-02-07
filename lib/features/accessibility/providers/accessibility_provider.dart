@@ -9,10 +9,13 @@ import '../../../core/theme/app_colors.dart';
 class AccessibilityProvider with ChangeNotifier {
   // Default to standard profile initially
   AccessibilityProfile _profile = AccessibilityProfile(userId: 'guest');
+  String _languageCode = 'fr'; // Default language
   bool _isLoading = true;
 
   AccessibilityProfile get profile => _profile;
+  String get languageCode => _languageCode;
   bool get isLoading => _isLoading;
+
 
   // 🎨 DYNAMIC THEME GENERATOR
   // This creates a Flutter Theme based on accessibility settings
@@ -86,22 +89,24 @@ class AccessibilityProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Check Local Storage (from Wizard) first (Pre-Auth)
       final prefs = await SharedPreferences.getInstance();
+      
+      // 0. Load Language First
+      _languageCode = prefs.getString('languageCode') ?? 'fr';
+
+      // 1. Check Local Storage (from Wizard) first (Pre-Auth)
       final localJson = prefs.getString('accessibility_profile_json');
       
       if (localJson != null) {
         final Map<String, dynamic> data = jsonDecode(localJson);
-        // Use guest ID if not logged in
         final userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
-        // Note: Assuming fromMap handles missing fields gracefully
         try {
              _profile = AccessibilityProfile.fromMap(data, userId);
+             // Also check json for language override?
+             if (data.containsKey('languageCode')) {
+               _languageCode = data['languageCode'];
+             }
              debugPrint("✅ Loaded Accessibility Profile from Local Storage");
-             debugPrint("   📐 textSize: ${_profile.textSize}");
-             debugPrint("   🎨 highContrast: ${_profile.highContrast}");
-             debugPrint("   🔤 boldText: ${_profile.boldText}");
-             debugPrint("   👁️ visualNeeds: ${_profile.visualNeeds}");
         } catch(e) {
              debugPrint("⚠️ Error parsing local profile: $e");
         }
@@ -117,10 +122,17 @@ class AccessibilityProvider with ChangeNotifier {
   
         if (doc.exists) {
             _profile = AccessibilityProfile.fromMap(doc.data()!, user.uid);
+            if (doc.data()!.containsKey('languageCode')) {
+              _languageCode = doc.data()!['languageCode'];
+              // Sync to prefs
+              await prefs.setString('languageCode', _languageCode);
+            }
             debugPrint("✅ Loaded Accessibility Profile from Firestore");
         } else if (localJson != null) {
             // Upload local wizard data to Firestore!
-            await updateProfile(_profile); 
+            await updateProfile(_profile);
+            // Also upload language!
+            await setLanguage(_languageCode);
             debugPrint("✅ Synced Local Profile to Firestore");
         }
       }
@@ -143,6 +155,23 @@ class AccessibilityProvider with ChangeNotifier {
           .collection('accessibilityProfiles')
           .doc(user.uid)
           .set(newProfile.toMap(), SetOptions(merge: true));
+    }
+  }
+
+  // 🌐 LANGUAGE MANAGEMENT
+  Future<void> setLanguage(String langCode) async {
+    _languageCode = langCode;
+    notifyListeners();
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('languageCode', langCode);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('accessibilityProfiles')
+          .doc(user.uid)
+          .set({'languageCode': langCode}, SetOptions(merge: true));
     }
   }
 

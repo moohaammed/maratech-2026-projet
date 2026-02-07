@@ -298,6 +298,9 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   void _selectLanguage(AppLanguage language) async {
     setState(() => _selectedLanguage = language);
     await _accessibility.setLanguage(language);
+    if (mounted) {
+      Provider.of<AccessibilityProvider>(context, listen: false).setLanguage(language.code);
+    }
     await _accessibility.vibrateSuccess();
     
     // Confirm in the selected language
@@ -641,7 +644,13 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     if (!_useVoiceMode) return const SizedBox.shrink();
 
     final isListening = _accessibility.isListening;
+    final isSpeaking = _accessibility.isSpeaking;
     
+    // Determine visual state
+    bool showActiveConfig = isListening || isSpeaking;
+    Color activeColor = useHighContrast ? Colors.black : AppColors.primary;
+    if (isSpeaking) activeColor = Colors.orange; // Different color for speaking
+
     return Column(
       children: [
         // Real-time Text Bubble (Floating)
@@ -664,49 +673,36 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
             ),
           ),
 
-        // Minimalist Status Indicator
+        // Status Indicator
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isListening 
-                ? (useHighContrast ? Colors.white : AppColors.primary.withOpacity(0.1))
+            color: showActiveConfig 
+                ? (useHighContrast ? Colors.white : activeColor.withOpacity(0.1))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
-            border: isListening 
-                ? Border.all(color: AppColors.primary.withOpacity(0.5)) 
+            border: showActiveConfig 
+                ? Border.all(color: activeColor.withOpacity(0.5)) 
                 : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Pulsing Icon
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 1.0, end: isListening ? 1.2 : 1.0),
-                duration: const Duration(milliseconds: 500),
-                builder: (context, scale, child) {
-                  return Transform.scale(
-                    scale: scale,
-                    child: Icon(
-                      isListening ? Icons.mic : Icons.mic_none,
-                      color: isListening 
-                          ? (useHighContrast ? Colors.black : AppColors.primary) 
-                          : Colors.grey,
-                      size: 24 * ts,
-                    ),
-                  );
-                },
-                onEnd: () {
-                   // Loop animation manually if needed in a stateful widget, 
-                   // but simplified here for reliability.
-                },
+              // Icon
+              Icon(
+                isListening ? Icons.mic : (isSpeaking ? Icons.volume_up : Icons.mic_none),
+                color: showActiveConfig ? activeColor : Colors.grey,
+                size: 24 * ts,
               ),
-              if (isListening) ...[
-                SizedBox(width: 8),
+              if (showActiveConfig) ...[
+                const SizedBox(width: 8),
                 Text(
-                  _T('Je vous écoute...', 'I\'m listening...', 'أنا أستمع...'),
+                  isListening 
+                      ? _T('Je vous écoute...', 'I\'m listening...', 'أنا أستمع...')
+                      : _T('Je parle...', 'Speaking...', 'أتحدث...'),
                   style: TextStyle(
-                    color: AppColors.primary,
+                    color: activeColor,
                     fontWeight: FontWeight.w600,
                     fontSize: 14 * ts,
                   ),

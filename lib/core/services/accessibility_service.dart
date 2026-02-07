@@ -145,9 +145,13 @@ class AccessibilityService extends ChangeNotifier {
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
-      _tts.setStartHandler(() {
+      _tts.setStartHandler(() async {
         _isSpeaking = true;
-        // DO NOT stop listening while speaking - allow barge-in
+        // Stop listening while speaking to avoid self-detection
+        if (_isListening) {
+          await _speech.stop();
+          _isListening = false;
+        }
         notifyListeners();
       });
 
@@ -255,7 +259,7 @@ class AccessibilityService extends ChangeNotifier {
   }
 
   Future<void> startContinuousListening() async {
-    if (!_isSpeechAvailable || _isListening) return; // Removed _isSpeaking check
+    if (!_isSpeechAvailable || _isListening || _isSpeaking) return;
     if (!_voiceCommandsEnabled) return;
 
     _isListening = true;

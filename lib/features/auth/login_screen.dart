@@ -37,6 +37,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  String _T(String fr, String en, String ar) {
+    final lang = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
+    switch (lang) {
+      case 'ar': return ar;
+      case 'en': return en;
+      default: return fr;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -70,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         },
       );
       final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-      final langCode = accessibility.profile.languageCode;
+      final langCode = accessibility.languageCode;
       String ttsCode = 'fr-FR';
       if (langCode == 'ar') ttsCode = 'ar-SA';
       if (langCode == 'en') ttsCode = 'en-US';
@@ -86,15 +95,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
     final profile = accessibility.profile;
     
-    if (profile.visualNeeds == 'blind') {
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
       await Future.delayed(const Duration(milliseconds: 800));
       await _tts.speak(
-        "Écran de connexion. Pour vous connecter, dictez votre nom. Pour continuer en tant qu'invité, dites Invité ou appuyez en bas de l'écran."
+        _T(
+          "Écran de connexion. Pour vous connecter, dictez votre nom. Pour continuer en tant qu'invité, dites Invité ou appuyez en bas de l'écran.",
+          "Login screen. To login, say your name. To continue as guest, say Guest or tap at the bottom.",
+          "شاشة تسجيل الدخول. لتسجيل الدخول، قل اسمك. للمتابعة كضيف، قل ضيف أو اضغط في أسفل الشاشة."
+        )
       );
-      
-      // Also register a global voice command if we have access to the service
-      // Note: We'll add a listener for the word "invité" in our local speech if possible
-      // or simply rely on the instructions.
     }
   }
 
@@ -156,7 +165,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     });
     
     // 2. Short prompt then listen
-    final prompt = field == 'name' ? 'Quel est votre nom ?' : 'Dites les 3 chiffres du code';
+    final prompt = field == 'name' 
+        ? _T('Quel est votre nom ?', 'What is your name?', 'ما هو اسمك؟') 
+        : _T('Dites les 3 chiffres du code', 'Say the 3 digit code', 'قل أرقام الرمز الثلاثة');
     await _tts.speak(prompt);
     
     // Wait for the prompt to finish (Reduced delay)
@@ -174,9 +185,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           // GUEST REDIRECT: Check for "invité" or "guest" or "arabe phonetic for guest"
           if (words.contains('invité') || words.contains('guest') || words.contains('ضيف')) {
             _stopVoiceInput();
-            _speak(profile.languageCode == 'ar' ? "جارٍ تسجيل الدخول كضيف" : 
-                   profile.languageCode == 'en' ? "Continuing as guest" : 
-                   "Connexion en tant qu'invité");
+            _speak(_T(
+              "Connexion en tant qu'invité",
+              "Continuing as guest",
+              "جارٍ تسجيل الدخول كضيف"
+            ));
             
             // Trigger the same logic as the guest button
             _continueAsGuest();
@@ -212,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         },
         listenFor: const Duration(seconds: 10),
         pauseFor: const Duration(seconds: 2), // Shorter pause detection
-        localeId: 'fr-FR',
+        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
         cancelOnError: true,
         listenMode: ListenMode.dictation,
       );
@@ -223,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         _isListeningForPin = false;
         _listeningField = '';
       });
-      _speak("Je n'ai pas compris. Veuillez réessayer.");
+      _speak(_T("Je n'ai pas compris. Veuillez réessayer.", "I didn't understand. Please retry.", "لم أفهم. يرجى المحاولة مرة أخرى."));
     }
   }
 
@@ -512,7 +525,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 200), // Prevent super wide pill
             child: Text(
-              'Espace Membre',
+              _T('Espace Membre', 'Member Area', 'فضاء الأعضاء'),
               style: TextStyle(
                 color: highContrast ? Colors.white : secondaryTextColor,
                 fontSize: (isSmall ? 12 : 14) * textScale,
@@ -558,17 +571,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Connexion', style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold, color: textColor)),
-                      Text('Accédez à votre espace', style: TextStyle(fontSize: 13 * textScale, color: secondaryTextColor)),
+                      Text(_T('Connexion', 'Login', 'تسجيل الدخول'), style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold, color: textColor)),
+                      Text(_T('Accédez à votre espace', 'Access your space', 'الولوج إلى فضائك'), style: TextStyle(fontSize: 13 * textScale, color: secondaryTextColor)),
                     ],
                   ),
                 ),
               ],
             ),
             SizedBox(height: 28 * textScale.clamp(1.0, 1.2)),
-            _buildVoiceTextField(controller: _nameController, focusNode: _nameFocus, label: 'Nom complet', hint: 'Entrez votre nom', icon: Icons.person_outline_rounded, fieldName: 'name', isListening: _isListeningForName, textInputAction: TextInputAction.next, onSubmitted: (_) => _pinFocus.requestFocus(), validator: (v) => v!.isEmpty ? 'Veuillez entrer votre nom' : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
+            _buildVoiceTextField(controller: _nameController, focusNode: _nameFocus, label: _T('Nom complet', 'Full Name', 'الاسم الكامل'), hint: _T('Entrez votre nom', 'Enter your name', 'أدخل اسمك'), icon: Icons.person_outline_rounded, fieldName: 'name', isListening: _isListeningForName, textInputAction: TextInputAction.next, onSubmitted: (_) => _pinFocus.requestFocus(), validator: (v) => v!.isEmpty ? _T('Veuillez entrer votre nom', 'Please enter your name', 'يرجى إدخال اسمك') : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
             SizedBox(height: 20 * textScale.clamp(1.0, 1.2)),
-            _buildVoiceTextField(controller: _pinController, focusNode: _pinFocus, label: 'Code PIN (3 chiffres CIN)', hint: '• • •', icon: Icons.lock_outline_rounded, fieldName: 'pin', isListening: _isListeningForPin, obscureText: _obscurePin, keyboardType: TextInputType.number, maxLength: 3, textInputAction: TextInputAction.done, onSubmitted: (_) => _login(), suffixIcon: IconButton(icon: Icon(_obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: secondaryTextColor), onPressed: () => setState(() => _obscurePin = !_obscurePin)), validator: (v) => v!.length != 3 ? '3 chiffres requis' : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
+            _buildVoiceTextField(controller: _pinController, focusNode: _pinFocus, label: _T('Code PIN (3 chiffres CIN)', 'PIN Code (3 digits)', 'الرمز السري (3 أرقام)'), hint: '• • •', icon: Icons.lock_outline_rounded, fieldName: 'pin', isListening: _isListeningForPin, obscureText: _obscurePin, keyboardType: TextInputType.number, maxLength: 3, textInputAction: TextInputAction.done, onSubmitted: (_) => _login(), suffixIcon: IconButton(icon: Icon(_obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: secondaryTextColor), onPressed: () => setState(() => _obscurePin = !_obscurePin)), validator: (v) => v!.length != 3 ? _T('3 chiffres requis', '3 digits required', '3 أرقام مطلوبة') : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
             SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
             _buildLoginButton(textScale, highContrast, primaryColor),
           ],
@@ -659,7 +672,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 // Voice Input Button
                 Semantics(
                   button: true,
-                  label: isListening ? 'Arrêter l\'écoute' : 'Dicter vocalement',
+                  label: isListening 
+                      ? _T('Arrêter l\'écoute', 'Stop listening', 'إيقاف الاستماع') 
+                      : _T('Dicter vocalement', 'Dictate', 'إملاء صوتي'),
                   child: IconButton(
                     icon: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
@@ -674,7 +689,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     onPressed: () => isListening 
                         ? _stopVoiceInput() 
                         : _startVoiceInput(fieldName),
-                    tooltip: 'Dicter',
+                    tooltip: _T('Dicter', 'Dictate', 'إملاء'),
                   ),
                 ),
                 // Existing suffix (e.g., eye icon for PIN)
@@ -741,7 +756,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 SizedBox(width: 8 * textScale),
                 Flexible(
                   child: Text(
-                    'Je vous écoute...',
+                    _T('Je vous écoute...', 'I\'m listening...', 'أنا أستمع...'),
                     style: TextStyle(
                       color: AppColors.error,
                       fontSize: 12 * textScale,
@@ -776,7 +791,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 children: [
                   Flexible(
                     child: Text(
-                      'SE CONNECTER', 
+                      _T('SE CONNECTER', 'LOGIN', 'تسجيل الدخول'), 
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale, letterSpacing: 1),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -809,7 +824,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             Container(
               constraints: const BoxConstraints(maxWidth: 200),
               child: Text(
-                'Première fois?', 
+                _T('Première fois?', 'First time?', 'أول مرة؟'), 
                 style: TextStyle(
                   color: secondaryTextColor, 
                   fontSize: 13 * textScale,
@@ -832,7 +847,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Contactez l\'administrateur', 
+                  _T('Contactez l\'administrateur', 'Contact admin', 'اتصل بالمسؤول'), 
                   style: TextStyle(fontSize: 14 * textScale)
                 ), 
                 backgroundColor: AppColors.info, 
@@ -843,7 +858,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           icon: Icon(Icons.help_outline_rounded, size: 18 * textScale.clamp(1.0, 1.2)),
           label: Flexible(
             child: Text(
-              'Besoin d\'aide?', 
+              _T('Besoin d\'aide?', 'Need help?', 'تحتاج مساعدة؟'), 
               style: TextStyle(fontSize: 14 * textScale),
               overflow: TextOverflow.ellipsis,
             ),
@@ -855,7 +870,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           onPressed: _continueAsGuest,
           icon: Icon(Icons.person_outline, size: 18 * textScale.clamp(1.0, 1.2)),
           label: Text(
-            'Continuer en tant qu\'invité',
+            _T('Continuer en tant qu\'invité', 'Continue as Guest', 'متابعة كضيف'),
             style: TextStyle(fontSize: 14 * textScale, fontWeight: FontWeight.bold),
           ),
           style: OutlinedButton.styleFrom(
