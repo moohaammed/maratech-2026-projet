@@ -8,6 +8,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 // Providers
 import 'features/accessibility/providers/accessibility_provider.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/ai_coach_service.dart';
+import 'core/services/accessibility_service.dart';
 
 // Screens
 import 'features/splash/splash_screen.dart';
@@ -47,6 +49,12 @@ void main() async {
       providers: [
         ChangeNotifierProvider(
           create: (_) => AccessibilityProvider()..loadProfile(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AccessibilityService()..initialize(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AICoachService()..initialize(),
         ),
       ],
       child: const RunningClubApp(),

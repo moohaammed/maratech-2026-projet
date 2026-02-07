@@ -117,7 +117,13 @@ class GroupService {
   // Get all groups (Future)
   Future<List<GroupModel>> getAllGroups() async {
     final snapshot = await _groupsCollection.get();
-    return snapshot.docs.map((doc) => GroupModel.fromFirestore(doc)).toList();
+    print('DEBUG: getAllGroups - Found ${snapshot.docs.length} documents');
+    for (var doc in snapshot.docs) {
+      print('DEBUG: Group doc.id = ${doc.id}, data = ${doc.data()}');
+    }
+    final groups = snapshot.docs.map((doc) => GroupModel.fromFirestore(doc)).toList();
+    print('DEBUG: Parsed ${groups.length} groups: ${groups.map((g) => g.id).toList()}');
+    return groups;
   }
 
   // Assign group to admin (claim)

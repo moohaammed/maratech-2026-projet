@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/widgets/ai_coach_widget.dart';
 
 /// Home Screen - Main dashboard for Adhérant (Regular Member)
 class HomeScreen extends StatefulWidget {
@@ -59,10 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _speak(String text) async {
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    if (profile.visualNeeds == 'blind') {
-      await _tts.speak(text);
-    }
+    // Unrestricted speech for manual interactions
+    await _tts.setVolume(1.0);
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   @override
@@ -94,13 +95,14 @@ class _HomeScreenState extends State<HomeScreen> {
       // extendBody: false, // Standard layout, navbar pushes content up
       body: IndexedStack(
         index: _currentIndex,
-        children: const [
-          _HomeTab(),
-          _EventsTab(),
-          _ClubTab(),
-          _ProfileTab(),
+        children: [
+          const _HomeTab(),
+          const _EventsTab(),
+          _ClubTab(onSpeak: _speak),
+          const _ProfileTab(),
         ],
       ),
+      floatingActionButton: const AICoachButton(),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: (80 * textScale).clamp(80.0, 120.0),
@@ -239,12 +241,10 @@ class _HomeTabState extends State<_HomeTab> {
 
   Future<void> _speak(String text) async {
     if (!mounted) return;
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    // Enable for both blind and low vision if they touch cards
-    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
-      await _tts.stop(); // Interrupt
-      await _tts.speak(text);
-    }
+    // Unrestricted speech for user interactions
+    await _tts.setVolume(1.0);
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
@@ -762,7 +762,9 @@ class _HomeTabState extends State<_HomeTab> {
                     SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
                     
                     // Stats / Info Row
-                    Row(
+                    Wrap(
+                      spacing: 12 * textScale.clamp(1.0, 1.2),
+                      runSpacing: 8 * textScale.clamp(1.0, 1.2),
                       children: [
                         _buildGlassBadge(
                           icon: Icons.groups, 
@@ -772,7 +774,6 @@ class _HomeTabState extends State<_HomeTab> {
                           textScale: textScale,
                           borderColor: highContrast ? groupColor : Colors.white30,
                         ),
-                        SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
                         _buildGlassBadge(
                           icon: Icons.calendar_month, 
                           text: memberSince.split(' ').last, // Just Year
@@ -831,12 +832,15 @@ class _HomeTabState extends State<_HomeTab> {
         children: [
            Icon(icon, size: 16 * textScale, color: color),
            SizedBox(width: 6 * textScale),
-           Text(
-             text,
-             style: TextStyle(
-               color: color,
-               fontWeight: FontWeight.w600,
-               fontSize: 13 * textScale,
+           Flexible(
+             child: Text(
+               text,
+               style: TextStyle(
+                 color: color,
+                 fontWeight: FontWeight.w600,
+                 fontSize: 13 * textScale,
+               ),
+               overflow: TextOverflow.ellipsis,
              ),
            )
         ],
@@ -931,40 +935,45 @@ class _HomeTabState extends State<_HomeTab> {
                 Row(
                   children: [
                     // Group Badge
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12 * textScale.clamp(1.0, 1.2),
-                        vertical: 6 * textScale.clamp(1.0, 1.2),
-                      ),
-                      decoration: BoxDecoration(
-                        color: groupColor.withOpacity(highContrast ? 0.3 : 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: groupColor, width: 1.5),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8 * textScale.clamp(1.0, 1.2),
-                            height: 8 * textScale.clamp(1.0, 1.2),
-                            decoration: BoxDecoration(
-                              color: groupColor,
-                              shape: BoxShape.circle,
+                    Flexible(
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12 * textScale.clamp(1.0, 1.2),
+                          vertical: 6 * textScale.clamp(1.0, 1.2),
+                        ),
+                        decoration: BoxDecoration(
+                          color: groupColor.withOpacity(highContrast ? 0.3 : 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: groupColor, width: 1.5),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8 * textScale.clamp(1.0, 1.2),
+                              height: 8 * textScale.clamp(1.0, 1.2),
+                              decoration: BoxDecoration(
+                                color: groupColor,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
-                          Text(
-                            groupName,
-                            style: TextStyle(
-                              color: groupColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12 * textScale,
+                            SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
+                            Flexible(
+                              child: Text(
+                                groupName,
+                                style: TextStyle(
+                                  color: groupColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12 * textScale,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    SizedBox(width: 8), 
                     // Time Badge
                     Container(
                       padding: EdgeInsets.symmetric(
@@ -1371,11 +1380,10 @@ class _EventsTabState extends State<_EventsTab> {
   }
 
   Future<void> _speak(String text) async {
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
-      await _tts.stop();
-      await _tts.speak(text);
-    }
+    // Unrestricted speech
+    await _tts.setVolume(1.0);
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
@@ -1656,7 +1664,8 @@ class _EventsTabState extends State<_EventsTab> {
 
 /// Club Tab - Club information
 class _ClubTab extends StatelessWidget {
-  const _ClubTab();
+  final Future<void> Function(String)? onSpeak;
+  const _ClubTab({this.onSpeak});
 
   @override
   Widget build(BuildContext context) {
@@ -1689,41 +1698,45 @@ class _ClubTab extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  Container(
-                    width: 100 * textScale.clamp(1.0, 1.3),
-                    height: 100 * textScale.clamp(1.0, 1.3),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: primaryColor, width: 3),
-                      image: const DecorationImage(
-                        image: AssetImage('assets/logo.jpg'),
-                        fit: BoxFit.cover,
+                   InkWell(
+                    onTap: () => onSpeak?.call("Running Club Tunis. Depuis 2015."),
+                    child: Container(
+                      width: 100 * textScale.clamp(1.0, 1.3),
+                      height: 100 * textScale.clamp(1.0, 1.3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: primaryColor, width: 3),
+                        image: const DecorationImage(
+                          image: AssetImage('assets/logo.jpg'),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                    /* 
-                       If assets/logo.jpg might fail, we should wrap in an error builder.
-                       But AssetImage in DecorationImage doesn't support errorBuilder directly in this robust way without complex providers.
-                       Keeping simple for now or using CircleAvatar background.
-                    */
                   ),
                   SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
-                  Text(
-                    "Running Club Tunis",
-                    style: TextStyle(
-                      fontSize: 24 * textScale,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
+                  InkWell(
+                    onTap: () => onSpeak?.call("Running Club Tunis"),
+                    child: Text(
+                      "Running Club Tunis",
+                      style: TextStyle(
+                        fontSize: 24 * textScale,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
-                  Text(
-                    "Depuis 2015",
-                    style: TextStyle(
-                      fontSize: 16 * textScale,
-                      color: secondaryTextColor,
-                      fontStyle: FontStyle.italic,
+                  InkWell(
+                    onTap: () => onSpeak?.call("Depuis 2015"),
+                    child: Text(
+                      "Depuis 2015",
+                      style: TextStyle(
+                        fontSize: 16 * textScale,
+                        color: secondaryTextColor,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ],
@@ -1740,13 +1753,16 @@ class _ClubTab extends StatelessWidget {
               textColor: primaryColor,
             ),
             SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-            Text(
-              "Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux.\n\n"
-              "Notre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied. Nous organisons des sorties hebdomadaires, des participations aux marathons internationaux et des événements caritatifs.",
-              style: TextStyle(
-                fontSize: 14 * textScale,
-                height: 1.5,
-                color: textColor,
+            InkWell(
+              onTap: () => onSpeak?.call("Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux. Notre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied."),
+              child: Text(
+                "Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux.\n\n"
+                "Notre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied. Nous organisons des sorties hebdomadaires, des participations aux marathons internationaux et des événements caritatifs.",
+                style: TextStyle(
+                  fontSize: 14 * textScale,
+                  height: 1.5,
+                  color: textColor,
+                ),
               ),
             ),
 
@@ -1791,80 +1807,87 @@ class _ClubTab extends StatelessWidget {
     required double textScale,
     required Color textColor,
   }) {
-    return Row(
-      children: [
-        Icon(icon, size: 24 * textScale, color: textColor),
-        SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18 * textScale,
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
+    return InkWell(
+      onTap: () => onSpeak?.call(title),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            Icon(icon, size: 24 * textScale, color: textColor),
+            SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20 * textScale,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildValueItem(String title, String description, IconData icon, double textScale, Color textColor, Color iconColor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20 * textScale, color: iconColor),
-          ),
-          SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16 * textScale,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: InkWell(
+        onTap: () => onSpeak?.call("$title. $description"),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20 * textScale, color: iconColor),
+            SizedBox(width: 12 * textScale),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16 * textScale,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
                   ),
-                ),
-                SizedBox(height: 4 * textScale.clamp(1.0, 1.2)),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 14 * textScale,
-                    color: textColor.withOpacity(0.8),
+                  SizedBox(height: 4 * textScale),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 14 * textScale,
+                      color: textColor.withOpacity(0.8),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildContactRow(IconData icon, String text, double textScale, Color textColor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 20 * textScale, color: textColor.withOpacity(0.7)),
-          SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 14 * textScale,
-              color: textColor,
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: InkWell(
+        onTap: () => onSpeak?.call(text),
+        child: Row(
+          children: [
+            Icon(icon, size: 20 * textScale, color: textColor.withOpacity(0.7)),
+            SizedBox(width: 12 * textScale),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 14 * textScale,
+                  color: textColor,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

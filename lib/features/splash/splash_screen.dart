@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../features/accessibility/providers/accessibility_provider.dart';
+import '../../features/accessibility/models/accessibility_profile.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Splash Screen - First screen users see with images carousel
@@ -73,6 +78,43 @@ class _SplashScreenState extends State<SplashScreen>
     final prefs = await SharedPreferences.getInstance();
     final isWizardComplete = prefs.getBool('onboarding_wizard_completed') ?? false;
     
+    // Check for auto-login
+    String? nextRoute; // Null implies standard flow
+    
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && mounted) {
+      try {
+        // Load Accessibility Profile
+        final authProvider = Provider.of<AccessibilityProvider>(context, listen: false);
+        await authProvider.loadProfile();
+        debugPrint("✅ Auto-login: Loaded profile for ${currentUser.uid}");
+        
+        // Fetch User Role
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+        if (userDoc.exists) {
+           final role = (userDoc.data()?['role'] ?? '').toString().toLowerCase();
+           debugPrint("✅ Auto-login user role: $role");
+           
+           // Admin logic (reset accessibility)
+           if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin' || role == 'coach_admin' || role == 'coachadmin') {
+               final defaultProfile = AccessibilityProfile(userId: currentUser.uid);
+               await authProvider.updateProfile(defaultProfile);
+           }
+           
+           if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin') {
+             nextRoute = '/admin-dashboard';
+           } else if (role == 'coach_admin' || role == 'coachadmin') {
+             nextRoute = '/coach-dashboard';
+           } else {
+             nextRoute = '/home';
+           }
+        }
+      } catch (e) {
+        debugPrint("⚠️ Auto-login error: $e");
+        // Fallback to login screen
+      }
+    }
+    
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Speak welcome for blind users IF not already completed (or just welcome anyway)
       final isScreenReaderActive = MediaQuery.of(context).accessibleNavigation;
@@ -83,10 +125,14 @@ class _SplashScreenState extends State<SplashScreen>
       // Navigate after showing all images
       await Future.delayed(const Duration(milliseconds: 4500));
       if (mounted) {
-        if (isWizardComplete) {
-            Navigator.pushReplacementNamed(context, '/login');
+        if (nextRoute != null) {
+            Navigator.pushReplacementNamed(context, nextRoute!);
         } else {
-            Navigator.pushReplacementNamed(context, '/accessibility-wizard');
+            if (isWizardComplete) {
+                Navigator.pushReplacementNamed(context, '/login');
+            } else {
+                Navigator.pushReplacementNamed(context, '/accessibility-wizard');
+            }
         }
       }
     });

@@ -95,11 +95,8 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
   }
 
   Stream<List<GroupModel>> _getEffectiveGroupsStream() {
-    final assignedId = widget.currentUser.assignedGroupId;
-    if (assignedId != null && assignedId.isNotEmpty) {
-      return _groupService.getGroupStream(assignedId).map((g) => g != null ? [g] : []);
-    }
-    return _groupService.getGroupsByAdmin(widget.currentUser.id);
+    // Return ALL groups so Group Admin can see and manage all of them
+    return _groupService.getGroupsStream();
   }
 
   Widget _buildGroupsTab(List<GroupModel> groups) {
@@ -119,11 +116,29 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
           return const Center(child: CircularProgressIndicator());
         }
         
+        // Check for errors
+        if (snapshot.hasError) {
+          print('ERROR in FutureBuilder: ${snapshot.error}');
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Erreur: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+              ],
+            ),
+          );
+        }
+        
         final allGroups = snapshot.data ?? [];
+        print('DEBUG: Dashboard - allGroups count: ${allGroups.length}');
+        print('DEBUG: Dashboard - allGroups IDs: ${allGroups.map((g) => g.id).toList()}');
         // Filter for specific legacy IDs
         final claimable = allGroups.where((g) => 
           ['beginner', 'intermediate', 'advanced'].contains(g.id)
         ).toList();
+        print('DEBUG: Dashboard - claimable count: ${claimable.length}');
 
         if (claimable.isEmpty) {
           return _buildEmptyState('Aucun groupe', 'Contactez l\'administrateur.');
@@ -215,7 +230,7 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
                 }
               }
             },
-            child: const Text("Confirmer"),
+            child: const Text("Avancé"),
           ),
         ],
       ),
