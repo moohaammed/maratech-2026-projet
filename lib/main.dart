@@ -11,6 +11,7 @@ import 'features/splash/splash_screen.dart';
 import 'features/onboarding/accessibility_wizard_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/admin/screens/admin_dashboard_screen.dart';
 
 // Theme
 import 'core/theme/app_theme.dart';
@@ -68,6 +69,7 @@ class RunningClubApp extends StatelessWidget {
         '/accessibility-wizard': (context) => const AccessibilityWizardScreen(),
         '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
+        '/admin-dashboard': (context) => const AdminDashboardScreen(),
       },
     );
   }

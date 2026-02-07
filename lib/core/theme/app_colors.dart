@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary running theme (Energetic Orange/Red)
-  static const Color primary = Color(0xFFFF5722);
-  static const Color primaryDark = Color(0xFFE64A19);
-  static const Color primaryLight = Color(0xFFFFCCBC);
+  // Primary running theme (Softer Sports Red)
+  static const Color primary = Color(0xFFE53935); // Red 600 - More comfortable/Vibrant
+  static const Color primaryDark = Color(0xFFC62828); // Red 800
+  static const Color primaryLight = Color(0xFFFFEBEE); // Red 50 - Very soft background
 
   // Secondary (Action/Accent)
   static const Color accent = Color(0xFF2979FF);
