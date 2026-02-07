@@ -337,47 +337,82 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     
-    final nameInput = _nameController.text.trim();
+    final input = _nameController.text.trim();
     final pin = _pinController.text.trim();
     
-    debugPrint("🔐 Attempting login for '$nameInput' with PIN '***'");
+    // Detect if input is email or name
+    final bool isEmailInput = input.contains('@');
+    
+    debugPrint("🔐 Attempting login with ${isEmailInput ? 'EMAIL' : 'NAME'}: '$input' with PIN '***'");
     
     try {
-      // 1. FAST LOOKUP: Try Exact Match first (Case Sensitive)
-      // This avoids downloading the entire collection in most cases
-      var snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('fullName', isEqualTo: nameInput)
-          .limit(1)
-          .get();
-          
       QueryDocumentSnapshot<Map<String, dynamic>>? userDoc;
       
-      if (snapshot.docs.isNotEmpty) {
-        userDoc = snapshot.docs.first;
-        debugPrint("✅ Found exact match: ${userDoc.id}");
-      } else {
-        // 2. FALLBACK: Slow Scan (Case Insensitive)
-        // Only do this if exact match fails
-        debugPrint("⚠️ Exact match failed, trying case-insensitive scan...");
-        final fullSnapshot = await FirebaseFirestore.instance.collection('users').get();
-        final lowerInput = nameInput.toLowerCase();
-        
-        for (var doc in fullSnapshot.docs) {
-          final data = doc.data();
-          final docName = (data['fullName'] ?? data['name'] ?? '').toString().toLowerCase();
+      if (isEmailInput) {
+        // ==================== EMAIL LOGIN ====================
+        // Direct lookup by email (fast)
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: input)
+            .limit(1)
+            .get();
+            
+        if (snapshot.docs.isNotEmpty) {
+          userDoc = snapshot.docs.first;
+          debugPrint("✅ Found user by email: ${userDoc.id}");
+        } else {
+          // Try case-insensitive email search
+          final lowerEmail = input.toLowerCase();
+          final fullSnapshot = await FirebaseFirestore.instance.collection('users').get();
           
-          if (docName == lowerInput || docName.contains(lowerInput)) { 
-               userDoc = doc;
-               debugPrint("✅ Found fuzzy match: ${doc.id} ($docName)");
-               break; 
+          for (var doc in fullSnapshot.docs) {
+            final docEmail = (doc.data()['email'] ?? '').toString().toLowerCase();
+            if (docEmail == lowerEmail) {
+              userDoc = doc;
+              debugPrint("✅ Found user by email (case-insensitive): ${doc.id}");
+              break;
+            }
+          }
+        }
+      } else {
+        // ==================== NAME LOGIN ====================
+        // 1. FAST LOOKUP: Try Exact Match first (Case Sensitive)
+        var snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('fullName', isEqualTo: input)
+            .limit(1)
+            .get();
+        
+        if (snapshot.docs.isNotEmpty) {
+          userDoc = snapshot.docs.first;
+          debugPrint("✅ Found exact name match: ${userDoc.id}");
+        } else {
+          // 2. FALLBACK: Slow Scan (Case Insensitive + partial match)
+          debugPrint("⚠️ Exact match failed, trying case-insensitive scan...");
+          final fullSnapshot = await FirebaseFirestore.instance.collection('users').get();
+          final lowerInput = input.toLowerCase();
+          
+          for (var doc in fullSnapshot.docs) {
+            final data = doc.data();
+            final docName = (data['fullName'] ?? data['name'] ?? '').toString().toLowerCase();
+            
+            if (docName == lowerInput || docName.contains(lowerInput)) { 
+              userDoc = doc;
+              debugPrint("✅ Found fuzzy match: ${doc.id} ($docName)");
+              break; 
+            }
           }
         }
       }
 
       if (userDoc == null) {
-        _showErrorSnackBar('Utilisateur "$nameInput" non trouvé.');
-        _speak("Je ne trouve pas d'utilisateur au nom de $nameInput.");
+        final errorMsg = isEmailInput 
+            ? 'Email "$input" non trouvé.'
+            : 'Utilisateur "$input" non trouvé.';
+        _showErrorSnackBar(errorMsg);
+        _speak(isEmailInput 
+            ? "Je ne trouve pas cet email." 
+            : "Je ne trouve pas d'utilisateur au nom de $input.");
         setState(() => _isLoading = false);
         return;
       }
@@ -385,42 +420,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       final email = userDoc.data()['email'];
       if (email == null) throw Exception("Email manquant pour cet utilisateur");
 
-      // 2. Reconstruct Password from PIN (Last 3 digits of CIN rule)
-      // Note: We use the email found in the doc to authenticate with Auth
-      // Assumption: You set password as CIN or last 6 digits? 
-      // User Spec says: "Enter: Last 3 digits of CIN (as password)"
-      // This implies the ACTUAL password check happens here.
-      // But Firebase Auth needs the REAL password. 
-      // If the real password is user's CIN, we need the full CIN. 
-      // IF we only have 3 digits, we can't authenticate with Firebase Auth unless the password IS just 3 digits (too short).
-      // HACK: I assume the "password" field in Firestore is a hash or we are "Simulating" auth with local check.
-      // REALITY CHECK: Standard Firebase Auth requires the actual password.
-      // If the User Spec says "3 digits", maybe the App signs in Anonymously and verifies the PIN?
-      // OR, maybe the password IS "000" + digits? 
-      // The previous code had `password = "000$pin"`. I will stick to that constraint.
-      
-      final password = "000$pin"; // Maintaining existing convention
+      // Reconstruct Password from PIN (format: "000" + pin)
+      final password = "000$pin";
 
       await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
       
       if (mounted) {
-        // 3. Load Accessibility Profile (Prioritize Firestore, fallback to Wizard)
+        // Load Accessibility Profile
         final authProvider = Provider.of<AccessibilityProvider>(context, listen: false);
-        
-        // Ensure the provider knows who is logged in and fetches their specific data
         await authProvider.loadProfile();
         debugPrint("✅ Loaded accessibility profile for user: ${userDoc.id}");
 
         setState(() => _isLoading = false);
         
-        // Check updated profile
+        // Check updated profile for TTS
         final currentProfile = authProvider.profile;
         if (currentProfile.visualNeeds == 'blind') {
           await _tts.speak('Connexion réussie! Bienvenue.');
         }
         
         final role = (userDoc.data()['role'] ?? '').toString();
-        // Check for ANY admin role string
         final isAdmin = role.toLowerCase().contains('admin'); 
         
         Navigator.pushReplacementNamed(context, isAdmin ? '/admin-dashboard' : '/home');
@@ -648,7 +667,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               ],
             ),
             SizedBox(height: 28 * textScale.clamp(1.0, 1.2)),
-            _buildVoiceTextField(controller: _nameController, focusNode: _nameFocus, label: _T('Nom complet', 'Full Name', 'الاسم الكامل'), hint: _T('Entrez votre nom', 'Enter your name', 'أدخل اسمك'), icon: Icons.person_outline_rounded, fieldName: 'name', isListening: _isListeningForName, textInputAction: TextInputAction.next, onSubmitted: (_) => _pinFocus.requestFocus(), validator: (v) => v!.isEmpty ? _T('Veuillez entrer votre nom', 'Please enter your name', 'يرجى إدخال اسمك') : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
+            _buildVoiceTextField(controller: _nameController, focusNode: _nameFocus, label: _T('Nom ou Email', 'Name or Email', 'الاسم أو البريد'), hint: _T('Entrez votre nom ou email', 'Enter your name or email', 'أدخل اسمك أو بريدك'), icon: Icons.person_outline_rounded, fieldName: 'name', isListening: _isListeningForName, textInputAction: TextInputAction.next, onSubmitted: (_) => _pinFocus.requestFocus(), validator: (v) => v!.isEmpty ? _T('Veuillez entrer votre nom ou email', 'Please enter your name or email', 'يرجى إدخال اسمك أو بريدك') : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
             SizedBox(height: 20 * textScale.clamp(1.0, 1.2)),
             _buildVoiceTextField(controller: _pinController, focusNode: _pinFocus, label: _T('Code PIN (3 chiffres CIN)', 'PIN Code (3 digits)', 'الرمز السري (3 أرقام)'), hint: '• • •', icon: Icons.lock_outline_rounded, fieldName: 'pin', isListening: _isListeningForPin, obscureText: _obscurePin, keyboardType: TextInputType.number, maxLength: 3, textInputAction: TextInputAction.done, onSubmitted: (_) => _login(), suffixIcon: IconButton(icon: Icon(_obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: secondaryTextColor), onPressed: () => setState(() => _obscurePin = !_obscurePin)), validator: (v) => v!.length != 3 ? _T('3 chiffres requis', '3 digits required', '3 أرقام مطلوبة') : null, textScale: textScale, boldText: boldText, highContrast: highContrast, textColor: textColor, secondaryTextColor: secondaryTextColor, primaryColor: primaryColor, borderColor: borderColor),
             SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
@@ -958,8 +977,636 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ),
+        const SizedBox(height: 8),
+        // DEBUG BUTTON for Demo Users
+        TextButton(
+          onPressed: _createDemoUsers,
+          child: Text(
+            "👥 Créer Utilisateurs Demo",
+            style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // DEBUG BUTTON for Real Events
+        TextButton(
+          onPressed: _createRealEvents,
+          child: Text(
+            "🏃 Créer 4 Événements Réels",
+            style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _createRealEvents() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final FirebaseFirestore firestore = FirebaseFirestore.instance;
+      
+      // ESPRIT El Ghazala coordinates: 36°53'59.9"N 10°11'22.7"E
+      // = 36.8999722, 10.1896389
+      
+      // Current date: Feb 7, 2026
+      // Tomorrow: Feb 8, 2026
+      final tomorrow = DateTime(2026, 2, 8);
+      final dayAfter = DateTime(2026, 2, 9);
+      final weekend = DateTime(2026, 2, 14); // Saturday
+      final nextWeek = DateTime(2026, 2, 15); // Sunday
+      
+      final List<Map<String, dynamic>> events = [
+        // EVENT 1: Tomorrow 11PM - 5km Night Run
+        {
+          "accessibility": {
+            "audioGuidanceAvailable": true,
+            "buddySystemAvailable": true,
+            "signLanguageSupport": false,
+            "visualGuidanceAvailable": true,
+            "wheelchairAccessible": false,
+          },
+          "category": "endurance",
+          "createdAt": FieldValue.serverTimestamp(),
+          "createdBy": "system_debug",
+          "creatorName": "Running Club Tunis",
+          "creatorRole": "main_admin",
+          "date": Timestamp.fromDate(DateTime(2026, 2, 8, 23, 0)), // Feb 8, 11PM
+          "description": "Course nocturne de 5km autour du campus ESPRIT. Parcours plat, idéal pour les débutants. Lampes frontales recommandées.",
+          "descriptionAr": "سباق ليلي 5 كم حول حرم إسبري. مسار مستو، مثالي للمبتدئين. يُنصح بالمصابيح الأمامية.",
+          "duration": 45,
+          "endTime": "23:45",
+          "groupColor": "#4CAF50",
+          "groupId": "beginner",
+          "groupName": "Débutants",
+          "intensity": "low",
+          "isAllGroups": true,
+          "isCancelled": false,
+          "isFeatured": true,
+          "isPinned": true,
+          "maxParticipants": 50,
+          "meetingPoint": {
+            "address": "ESPRIT El Ghazala, Route de la Marsa, Ariana",
+            "coordinates": {
+              "latitude": 36.8999722,
+              "longitude": 10.1896389,
+            },
+            "name": "ESPRIT - Entrée Principale",
+            "nameAr": "إسبري - المدخل الرئيسي",
+          },
+          "parkingAvailable": true,
+          "publicTransport": ["Bus 29", "Metro B - Ariana"],
+          "participantCount": 0,
+          "participants": [],
+          "publishedAt": FieldValue.serverTimestamp(),
+          "route": {
+            "difficulty": "easy",
+            "distance": 5,
+            "elevation": 20,
+            "routeDescription": "2 loops around ESPRIT campus and nearby streets",
+            "routeDescriptionAr": "دورتان حول حرم إسبري والشوارع المجاورة",
+            "terrain": "paved",
+          },
+          "startTime": "23:00",
+          "status": "upcoming",
+          "targetPace": "6:30",
+          "title": "Course Nocturne 5K - ESPRIT",
+          "titleAr": "سباق ليلي 5 كم - إسبري",
+          "type": "special",
+          "updatedAt": FieldValue.serverTimestamp(),
+          "waitlist": [],
+        },
+        
+        // EVENT 2: Day after tomorrow - 10km Morning Run
+        {
+          "accessibility": {
+            "audioGuidanceAvailable": true,
+            "buddySystemAvailable": true,
+            "signLanguageSupport": false,
+            "visualGuidanceAvailable": true,
+            "wheelchairAccessible": false,
+          },
+          "category": "tempo",
+          "createdAt": FieldValue.serverTimestamp(),
+          "createdBy": "system_debug",
+          "creatorName": "Running Club Tunis",
+          "creatorRole": "coach_admin",
+          "date": Timestamp.fromDate(DateTime(2026, 2, 9, 7, 0)), // Feb 9, 7AM
+          "description": "Sortie matinale 10km vers le Lac de Tunis. Rythme modéré, retour par la route côtière. Apportez de l'eau.",
+          "descriptionAr": "خروج صباحي 10 كم نحو بحيرة تونس. إيقاع معتدل، العودة عبر الطريق الساحلي. أحضر الماء.",
+          "duration": 70,
+          "endTime": "08:10",
+          "groupColor": "#FFC107",
+          "groupId": "intermediate",
+          "groupName": "Intermédiaires",
+          "intensity": "medium",
+          "isAllGroups": false,
+          "isCancelled": false,
+          "isFeatured": true,
+          "isPinned": false,
+          "maxParticipants": 35,
+          "meetingPoint": {
+            "address": "Technopole El Ghazala, Ariana",
+            "coordinates": {
+              "latitude": 36.8985,
+              "longitude": 10.1880,
+            },
+            "name": "Technopole El Ghazala - Parking",
+            "nameAr": "تكنوبول الغزالة - موقف السيارات",
+          },
+          "parkingAvailable": true,
+          "publicTransport": ["Bus 29", "TGM La Marsa"],
+          "participantCount": 0,
+          "participants": [],
+          "publishedAt": FieldValue.serverTimestamp(),
+          "route": {
+            "difficulty": "moderate",
+            "distance": 10,
+            "elevation": 45,
+            "routeDescription": "El Ghazala → Lac de Tunis → Retour côtier",
+            "routeDescriptionAr": "الغزالة ← بحيرة تونس ← العودة الساحلية",
+            "terrain": "mixed",
+          },
+          "startTime": "07:00",
+          "status": "upcoming",
+          "targetPace": "5:45",
+          "title": "Sortie Matinale 10K - El Ghazala",
+          "titleAr": "خروج صباحي 10 كم - الغزالة",
+          "type": "daily",
+          "updatedAt": FieldValue.serverTimestamp(),
+          "waitlist": [],
+        },
+        
+        // EVENT 3: Weekend Saturday - Trail Run 15km
+        {
+          "accessibility": {
+            "audioGuidanceAvailable": true,
+            "buddySystemAvailable": true,
+            "signLanguageSupport": false,
+            "visualGuidanceAvailable": false,
+            "wheelchairAccessible": false,
+          },
+          "category": "trail",
+          "createdAt": FieldValue.serverTimestamp(),
+          "createdBy": "system_debug",
+          "creatorName": "Running Club Tunis",
+          "creatorRole": "coach_admin",
+          "date": Timestamp.fromDate(DateTime(2026, 2, 14, 8, 30)), // Feb 14, 8:30AM
+          "description": "Trail de la Saint-Valentin! Parcours nature vers Sidi Bou Saïd. Vues spectaculaires, terrain varié. Niveau avancé requis.",
+          "descriptionAr": "تريل عيد الحب! مسار طبيعي نحو سيدي بوسعيد. مناظر خلابة، تضاريس متنوعة. مستوى متقدم مطلوب.",
+          "duration": 120,
+          "endTime": "10:30",
+          "groupColor": "#E91E63",
+          "groupId": "advanced",
+          "groupName": "Avancés",
+          "intensity": "high",
+          "isAllGroups": false,
+          "isCancelled": false,
+          "isFeatured": true,
+          "isPinned": true,
+          "maxParticipants": 25,
+          "meetingPoint": {
+            "address": "ESPRIT El Ghazala, Ariana",
+            "coordinates": {
+              "latitude": 36.8999722,
+              "longitude": 10.1896389,
+            },
+            "name": "ESPRIT - Portail Sud",
+            "nameAr": "إسبري - البوابة الجنوبية",
+          },
+          "parkingAvailable": true,
+          "publicTransport": ["Bus 29", "Metro B"],
+          "participantCount": 0,
+          "participants": [],
+          "publishedAt": FieldValue.serverTimestamp(),
+          "route": {
+            "difficulty": "hard",
+            "distance": 15,
+            "elevation": 180,
+            "routeDescription": "ESPRIT → Raoued → Sidi Bou Saïd → Retour La Marsa",
+            "routeDescriptionAr": "إسبري ← رواد ← سيدي بوسعيد ← العودة المرسى",
+            "terrain": "trail",
+          },
+          "startTime": "08:30",
+          "status": "upcoming",
+          "targetPace": "7:00",
+          "title": "Trail Saint-Valentin 15K 💕",
+          "titleAr": "تريل عيد الحب 15 كم 💕",
+          "type": "special",
+          "updatedAt": FieldValue.serverTimestamp(),
+          "waitlist": [],
+        },
+        
+        // EVENT 4: Sunday - Recovery Jog + Coffee
+        {
+          "accessibility": {
+            "audioGuidanceAvailable": true,
+            "buddySystemAvailable": true,
+            "signLanguageSupport": true,
+            "visualGuidanceAvailable": true,
+            "wheelchairAccessible": true,
+          },
+          "category": "recovery",
+          "createdAt": FieldValue.serverTimestamp(),
+          "createdBy": "system_debug",
+          "creatorName": "Running Club Tunis",
+          "creatorRole": "main_admin",
+          "date": Timestamp.fromDate(DateTime(2026, 2, 15, 9, 0)), // Feb 15, 9AM
+          "description": "Footing léger suivi d'un petit-déjeuner convivial au café du coin. Ouvert à tous niveaux, ambiance détendue!",
+          "descriptionAr": "جري خفيف يعقبه فطور ودي في المقهى المجاور. مفتوح لجميع المستويات، أجواء مريحة!",
+          "duration": 90,
+          "endTime": "10:30",
+          "groupColor": "#9C27B0",
+          "groupId": "all",
+          "groupName": "Tous Niveaux",
+          "intensity": "low",
+          "isAllGroups": true,
+          "isCancelled": false,
+          "isFeatured": false,
+          "isPinned": false,
+          "maxParticipants": 60,
+          "meetingPoint": {
+            "address": "Café La Pause, Technopole El Ghazala",
+            "coordinates": {
+              "latitude": 36.8995,
+              "longitude": 10.1905,
+            },
+            "name": "Café La Pause - Technopole",
+            "nameAr": "مقهى لا بوز - التكنوبول",
+          },
+          "parkingAvailable": true,
+          "publicTransport": ["Bus 29", "Metro B - Ariana"],
+          "participantCount": 0,
+          "participants": [],
+          "publishedAt": FieldValue.serverTimestamp(),
+          "route": {
+            "difficulty": "easy",
+            "distance": 3,
+            "elevation": 10,
+            "routeDescription": "Easy loop around the tech park, then coffee!",
+            "routeDescriptionAr": "جولة سهلة حول الحديقة التقنية، ثم قهوة!",
+            "terrain": "paved",
+          },
+          "startTime": "09:00",
+          "status": "upcoming",
+          "targetPace": "7:30",
+          "title": "Footing + Café ☕ (Dimanche Chill)",
+          "titleAr": "جري خفيف + قهوة ☕ (أحد مريح)",
+          "type": "social",
+          "updatedAt": FieldValue.serverTimestamp(),
+          "waitlist": [],
+        },
+      ];
+      
+      int createdCount = 0;
+      
+      for (final eventData in events) {
+        try {
+          await firestore.collection('events').add(eventData);
+          createdCount++;
+          debugPrint("✅ Created event: ${eventData['title']}");
+        } catch (e) {
+          debugPrint("❌ Failed to create event: $e");
+        }
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("✅ $createdCount événements créés!"),
+                const SizedBox(height: 4),
+                const Text("📍 Lieu: ESPRIT El Ghazala", style: TextStyle(fontSize: 11)),
+                const Text("📅 8 Fév 23h, 9 Fév 7h, 14 Fév 8h30, 15 Fév 9h", style: TextStyle(fontSize: 10)),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ Error creating events: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _createDemoUsers() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final FirebaseAuth auth = FirebaseAuth.instance;
+      final FirebaseFirestore firestore = FirebaseFirestore.instance;
+      final now = Timestamp.now();
+      
+      // ==================== ADMIN USERS ====================
+      final List<Map<String, dynamic>> adminUsers = [
+        {
+          "email": "admin.principal@runningclubtunis.tn",
+          "password": "000123",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 1,
+            "cin": "encrypted:12345678",
+            "createdAt": now,
+            "email": "admin.principal@runningclubtunis.tn",
+            "fullName": "Mohamed Ben Ali",
+            "groupId": "all",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": true,
+              "canDeleteUsers": true,
+              "canEditUsers": true,
+              "canManageGroups": true,
+              "canPostAnnouncements": true,
+              "canViewAnalytics": true,
+            },
+            "phone": "+216 98 765 432",
+            "pin": "123",
+            "pinHash": "hash-123",
+            "role": "main_admin",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "coach.senior@runningclubtunis.tn",
+          "password": "000456",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 2,
+            "cin": "encrypted:87654321",
+            "createdAt": now,
+            "email": "coach.senior@runningclubtunis.tn",
+            "fullName": "Fatma Trabelsi",
+            "groupId": "advanced",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": true,
+              "canDeleteUsers": false,
+              "canEditUsers": true,
+              "canManageGroups": true,
+              "canPostAnnouncements": true,
+              "canViewAnalytics": true,
+            },
+            "phone": "+216 55 123 456",
+            "pin": "456",
+            "pinHash": "hash-456",
+            "role": "coach_admin",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "assistant.admin@runningclubtunis.tn",
+          "password": "000789",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 3,
+            "cin": "encrypted:11223344",
+            "createdAt": now,
+            "email": "assistant.admin@runningclubtunis.tn",
+            "fullName": "Ahmed Khediri",
+            "groupId": "intermediate",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": true,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": true,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 22 987 654",
+            "pin": "789",
+            "pinHash": "hash-789",
+            "role": "sub_admin",
+            "updatedAt": now,
+          }
+        },
+      ];
+      
+      // ==================== ADHERANT USERS ====================
+      final List<Map<String, dynamic>> memberUsers = [
+        {
+          "email": "samir.jaziri@gmail.com",
+          "password": "000111",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 0,
+            "cin": "encrypted:55667788",
+            "createdAt": now,
+            "email": "samir.jaziri@gmail.com",
+            "fullName": "Samir Jaziri",
+            "groupId": "beginner",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": false,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": false,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 20 111 222",
+            "pin": "111",
+            "pinHash": "hash-111",
+            "role": "user",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "nadia.bouazizi@outlook.com",
+          "password": "000222",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 0,
+            "cin": "encrypted:99887766",
+            "createdAt": now,
+            "email": "nadia.bouazizi@outlook.com",
+            "fullName": "Nadia Bouazizi",
+            "groupId": "intermediate",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": false,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": false,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 25 333 444",
+            "pin": "222",
+            "pinHash": "hash-222",
+            "role": "user",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "karim.belhaj@gmail.com",
+          "password": "000333",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 0,
+            "cin": "encrypted:44556677",
+            "createdAt": now,
+            "email": "karim.belhaj@gmail.com",
+            "fullName": "Karim Belhaj",
+            "groupId": "advanced",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": false,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": false,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 29 555 666",
+            "pin": "333",
+            "pinHash": "hash-333",
+            "role": "user",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "leila.mansour@yahoo.fr",
+          "password": "000444",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 0,
+            "cin": "encrypted:22334455",
+            "createdAt": now,
+            "email": "leila.mansour@yahoo.fr",
+            "fullName": "Leila Mansour",
+            "groupId": "beginner",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": false,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": false,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 23 777 888",
+            "pin": "444",
+            "pinHash": "hash-444",
+            "role": "user",
+            "updatedAt": now,
+          }
+        },
+        {
+          "email": "youssef.hamdi@gmail.com",
+          "password": "000555",
+          "data": {
+            "accountCreatedBy": "system_debug",
+            "accountStatus": "active",
+            "adminLevel": 0,
+            "cin": "encrypted:66778899",
+            "createdAt": now,
+            "email": "youssef.hamdi@gmail.com",
+            "fullName": "Youssef Hamdi",
+            "groupId": "intermediate",
+            "isActive": true,
+            "permissions": {
+              "canCreateEvents": false,
+              "canDeleteUsers": false,
+              "canEditUsers": false,
+              "canManageGroups": false,
+              "canPostAnnouncements": false,
+              "canViewAnalytics": false,
+            },
+            "phone": "+216 27 999 000",
+            "pin": "555",
+            "pinHash": "hash-555",
+            "role": "user",
+            "updatedAt": now,
+          }
+        },
+      ];
+      
+      int createdCount = 0;
+      int failedCount = 0;
+      
+      // Create all users
+      final allUsers = [...adminUsers, ...memberUsers];
+      
+      for (final userConfig in allUsers) {
+        try {
+          // Create Firebase Auth user
+          final UserCredential cred = await auth.createUserWithEmailAndPassword(
+            email: userConfig["email"],
+            password: userConfig["password"],
+          );
+          
+          // Create Firestore document with the Auth UID
+          final userData = Map<String, dynamic>.from(userConfig["data"]);
+          userData["userId"] = cred.user!.uid;
+          
+          await firestore.collection('users').doc(cred.user!.uid).set(userData);
+          
+          createdCount++;
+          debugPrint("✅ Created user: ${userData['fullName']} (${userData['role']})");
+        } catch (e) {
+          if (e is FirebaseAuthException && e.code == 'email-already-in-use') {
+            debugPrint("⚠️ User already exists: ${userConfig['email']}");
+          } else {
+            debugPrint("❌ Failed to create ${userConfig['email']}: $e");
+            failedCount++;
+          }
+        }
+      }
+      
+      // Sign out after creating users
+      await auth.signOut();
+      
+      if (mounted) {
+        final message = createdCount > 0 
+            ? "✅ $createdCount utilisateurs créés avec succès!"
+            : "⚠️ Aucun nouvel utilisateur créé (peut-être déjà existants)";
+            
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message),
+                if (failedCount > 0) Text("$failedCount échecs"),
+                const SizedBox(height: 4),
+                const Text("📌 PIN Admins: 123, 456, 789", style: TextStyle(fontSize: 11)),
+                const Text("📌 PIN Adhérents: 111, 222, 333, 444, 555", style: TextStyle(fontSize: 11)),
+              ],
+            ),
+            backgroundColor: createdCount > 0 ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ Error creating demo users: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _createTestEvent() async {
