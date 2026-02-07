@@ -117,3 +117,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  image: "assets/logo_rct.png"
+  color: "#FFFFFF"
+  fullscreen: true

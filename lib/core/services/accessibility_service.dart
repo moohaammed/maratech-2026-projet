@@ -127,15 +127,8 @@ class AccessibilityService extends ChangeNotifier {
     _currentLanguage = language;
     await _tts.setLanguage(language.ttsCode);
     
-    // Language-specific speech rate optimization
-    double rate = 0.45; // Default French
-    if (language.code == 'ar') {
-      rate = 0.40; // Slower for Arabic clarity
-    } else if (language.code == 'en') {
-      rate = 0.48; // Slightly faster for English
-    }
-    _speechRate = rate;
-    await _tts.setSpeechRate(rate);
+    // Use unified helper for rate/pitch
+    await _updateTtsParamsForLanguage(language);
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('languageCode', language.code);
@@ -147,13 +140,19 @@ class AccessibilityService extends ChangeNotifier {
   // TEXT-TO-SPEECH
   // ═══════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════
+  // TEXT-TO-SPEECH
+  // ═══════════════════════════════════════════════════════════
+
   Future<void> _initializeTts() async {
     try {
+      // FORCE Google TTS on Android for best Arabic support
+      if (await _tts.isLanguageAvailable("ar-SA")) {
+         await _tts.setEngine("com.google.android.tts");
+      }
+      
       await _tts.setLanguage(_currentLanguage.ttsCode);
-      await _tts.setLanguage(_currentLanguage.ttsCode); // Force current language (French default)
-      await _tts.setSpeechRate(_speechRate);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
+      await _updateTtsParamsForLanguage(_currentLanguage);
 
       _tts.setStartHandler(() async {
         _isSpeaking = true;
@@ -183,19 +182,81 @@ class AccessibilityService extends ChangeNotifier {
       _isTtsInitialized = true;
     } catch (e) {
       debugPrint('TTS initialization failed: $e');
-      _isTtsInitialized = false;
+      // Fallback to default engine if Google fails
+      try {
+        await _tts.setLanguage(_currentLanguage.ttsCode);
+        _isTtsInitialized = true;
+      } catch (e2) {
+        _isTtsInitialized = false;
+      }
     }
   }
 
-  Future<void> speak(String message, {bool interrupt = true}) async {
+  Future<void> _updateTtsParamsForLanguage(AppLanguage language) async {
+      double rate = 0.5;
+      double pitch = 1.0;
+
+      switch (language.code) {
+        case 'ar':
+          rate = 0.45; // Slower for Arabic
+          break;
+        case 'fr':
+          rate = 0.5;
+          break;
+        case 'en':
+          rate = 0.5;
+          break;
+      }
+
+      await _tts.setSpeechRate(rate);
+      await _tts.setPitch(pitch);
+      
+      // Attempt to pick best voice
+      try {
+       /* 
+        // Logic to pick best voice if needed (simplified for now to rely on engine defaults which are usually good if Google TTS is set)
+        var voices = await _tts.getVoices;
+        // filtering logic...
+       */
+      } catch (e) {
+        debugPrint("Error setting voice: $e");
+      }
+  }
+
+  /// Detect language from text
+  AppLanguage _detectLanguage(String text) {
+    if (RegExp(r'[\u0600-\u06FF]').hasMatch(text)) return AppLanguage.arabic;
+    if (RegExp(r'[àâçéèêëîïôùûüÿœæ]', caseSensitive: false).hasMatch(text)) return AppLanguage.french;
+    // Default to current app language if ambiguous, or English
+    return _currentLanguage; 
+  }
+
+  String _cleanText(String text) {
+     // Remove markdown bold/italic
+     var clean = text.replaceAll('**', '').replaceAll('__', '').replaceAll('*', '');
+     // Remove emojis (simple regex)
+     clean = clean.replaceAll(RegExp(r'[^\x00-\x7F\u0600-\u06FF\u00C0-\u00FF\u0100-\u017F]+'), ''); 
+     return clean;
+  }
+
+  Future<void> speak(String message, {bool interrupt = true, AppLanguage? language}) async {
     if (!_voiceGuidanceEnabled || !_isTtsInitialized) return;
-    if (_audioNeeds == 'deaf') return; // Don't speak to deaf users
+    if (_audioNeeds == 'deaf') return; 
     
     if (interrupt && _isSpeaking) {
       await _tts.stop();
     }
     
-    await _tts.speak(message);
+    // Auto-detect or use specified
+    final targetLang = language ?? _detectLanguage(message);
+    
+    // Set language ONLY if different (to avoid delay)
+    // Actually, always set to ensure correct voice
+    await _tts.setLanguage(targetLang.ttsCode);
+    await _updateTtsParamsForLanguage(targetLang);
+
+    final cleaned = _cleanText(message);
+    await _tts.speak(cleaned);
   }
 
   Future<void> stopSpeaking() async {
