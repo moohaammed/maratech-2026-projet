@@ -3,12 +3,25 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/notification_service.dart';
 import '../../accessibility/providers/accessibility_provider.dart';
 import '../../coach/models/event_model.dart';
 import 'package:intl/intl.dart';
 
-class NotificationScreen extends StatelessWidget {
+class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
+
+  @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Réinitialiser le badge quand l'utilisateur ouvre les notifications
+    NotificationService.resetBadge();
+  }
 
   @override
   Widget build(BuildContext context) {

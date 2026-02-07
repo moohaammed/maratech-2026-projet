@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -18,12 +19,76 @@ class NotificationService {
   
   // Navigator key for handling navigation from notifications
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  
+  // Badge counter - compte le nombre de notifications non lues
+  static int _badgeCount = 0;
+  
+  // Incrémenter le badge
+  Future<void> _incrementBadge() async {
+    _badgeCount++;
+    debugPrint("📊 Badge count: $_badgeCount");
+  }
+  
+  // Réinitialiser le badge (quand l'utilisateur ouvre les notifications)
+  static Future<void> resetBadge() async {
+    _badgeCount = 0;
+    debugPrint("📊 Badge reset to 0");
+  }
 
   Future<void> init() async {
     // 1. Initialize Timezone
     tz.initializeTimeZones();
 
-    // 2. Local Notifications Setup
+    // 2. Créer les canaux de notification Android avec les bons paramètres
+    // Ceci est CRUCIAL pour que le son et le popup fonctionnent!
+    const AndroidNotificationChannel newEventsChannel = AndroidNotificationChannel(
+      'new_events', // id
+      'Nouveaux événements', // name
+      description: 'Notifications pour les nouveaux événements créés',
+      importance: Importance.max, // MAX pour popup heads-up
+      playSound: true,
+      enableVibration: true,
+      enableLights: true,
+    );
+
+    const AndroidNotificationChannel remindersChannel = AndroidNotificationChannel(
+      'event_reminders', // id
+      'Rappels d\'événements', // name
+      description: 'Rappels 30 minutes avant les événements',
+      importance: Importance.max, // MAX pour popup heads-up
+      playSound: true,
+      enableVibration: true,
+      enableLights: true,
+    );
+
+    const AndroidNotificationChannel highImportanceChannel = AndroidNotificationChannel(
+      'high_importance_channel', // id
+      'High Importance Notifications', // name
+      description: 'Notifications importantes',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+
+    // Créer les canaux sur l'appareil Android
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
+        FlutterLocalNotificationsPlugin();
+    
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(newEventsChannel);
+    
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(remindersChannel);
+    
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(highImportanceChannel);
+
+    debugPrint("✅ Canaux de notification créés avec importance MAX");
+
+    // 3. Local Notifications Setup
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     
@@ -94,27 +159,42 @@ class NotificationService {
   void startListeningToEvents() {
     // Garder trace des événements déjà notifiés pour éviter les doublons
     final Set<String> notifiedEvents = {};
+    bool isFirstLoad = true; // Flag pour le premier chargement
     
     _eventService.getEventsStream().listen((events) {
       debugPrint("📅 Détection de ${events.length} événements");
       
-      for (var event in events) {
-        // Si c'est un nouvel événement (pas encore notifié)
-        if (!notifiedEvents.contains(event.id)) {
+      if (isFirstLoad) {
+        // PREMIER CHARGEMENT: Ajouter tous les événements existants au Set SANS notifier
+        debugPrint("🔄 Premier chargement: Enregistrement de ${events.length} événements existants (pas de notification)");
+        for (var event in events) {
           notifiedEvents.add(event.id);
-          
-          // Envoyer une notification immédiate pour les nouveaux événements
-          _sendImmediateEventNotification(event);
+        }
+        isFirstLoad = false;
+      } else {
+        // CHARGEMENTS SUIVANTS: Notifier seulement les NOUVEAUX événements
+        for (var event in events) {
+          // Si c'est un nouvel événement (pas encore dans le Set)
+          if (!notifiedEvents.contains(event.id)) {
+            notifiedEvents.add(event.id);
+            
+            // Envoyer une notification immédiate SEULEMENT pour les vrais nouveaux événements
+            debugPrint("🆕 Nouvel événement détecté: ${event.title}");
+            _sendImmediateEventNotification(event);
+          }
         }
       }
       
-      // Programmer les rappels 30 min avant pour tous les événements
+      // Programmer les rappels 30 min avant pour tous les événements (nouveaux ET existants)
       scheduleMultipleReminders(events);
     });
   }
   
   Future<void> _sendImmediateEventNotification(EventModel event) async {
     debugPrint("🔔 Envoi notification immédiate pour: ${event.title}");
+    
+    // Incrémenter le badge
+    await _incrementBadge();
     
     final icon = event.type == EventType.daily ? '🏃' : '⭐';
     final payload = jsonEncode({
@@ -127,19 +207,49 @@ class NotificationService {
         id: event.id.hashCode + 1000, // +1000 pour différencier des rappels
         title: '$icon Nouvel événement: ${event.title}',
         body: '${_formatDate(event.date)} à ${event.time} - ${event.location}',
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             'new_events',
             'Nouveaux événements',
             channelDescription: 'Notifications pour les nouveaux événements créés',
-            importance: Importance.high,
+            importance: Importance.max, // Max pour la popup heads-up
             priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound('notification'),
+            
+            // SON - Active le son par défaut du système
+            playSound: true,
+            
+            // VIBRATION - Pattern de vibration
+            enableVibration: true,
+            vibrationPattern: Int64List.fromList([0, 500, 200, 500]), // Vibration: pause, vibrer, pause, vibrer
+            
+            // POPUP HEADS-UP - Affiche en haut de l'écran
+            fullScreenIntent: true,
+            
+            // STYLE - Couleur
+            color: const Color(0xFF1565C0), // Bleu pour les événements
+            
+            // LED - Pour les appareils qui ont une LED
+            enableLights: true,
+            ledColor: const Color(0xFF1565C0),
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            
+            // CATÉGORIE - Pour le système Android
+            category: AndroidNotificationCategory.event,
+            
+            // TICKER - Texte qui défile brièvement
+            ticker: 'Nouvel événement: ${event.title}',
+            
+            // VISIBILITÉ - Apparaît sur lockscreen
+            visibility: NotificationVisibility.public,
+            
+            // BADGE - Nombre de notifications non lues
+            number: _badgeCount,
           ),
         ),
         payload: payload,
       );
-      debugPrint("✅ Notification immédiate envoyée pour: ${event.title}");
+      debugPrint("✅ Notification immédiate envoyée pour: ${event.title} (Badge: $_badgeCount)");
     } catch (e) {
       debugPrint("❌ Erreur envoi notification immédiate: $e");
     }
@@ -231,18 +341,47 @@ class NotificationService {
       title: title,
       body: body,
       scheduledDate: tz.TZDateTime.from(reminderTime, tz.local),
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           'event_reminders',
           'Rappels d\'événements',
-          importance: Importance.high,
+          channelDescription: 'Rappels 30 minutes avant les événements',
+          importance: Importance.max, // Max pour la popup heads-up
           priority: Priority.high,
+          
+          // SON - Active le son par défaut du système
+          playSound: true,
+          
+          // VIBRATION - Pattern de vibration
+          enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 300, 200, 300, 200, 300]), // Triple vibration
+          
+          // POPUP HEADS-UP
+          fullScreenIntent: true,
+          
+          // STYLE
+          color: const Color(0xFFFF9800), // Orange pour les rappels
+          
+          // LED
+          enableLights: true,
+          ledColor: const Color(0xFFFF9800),
+          ledOnMs: 1000,
+          ledOffMs: 500,
+          
+          // CATÉGORIE
+          category: AndroidNotificationCategory.reminder,
+          
+          // TICKER
+          ticker: 'Rappel: $title',
+          
+          // VISIBILITÉ
+          visibility: NotificationVisibility.public,
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: payload,
     );
-    debugPrint("Scheduled reminder for $title at $reminderTime");
+    debugPrint("✅ Rappel programmé pour $title à $reminderTime");
   }
 
 
