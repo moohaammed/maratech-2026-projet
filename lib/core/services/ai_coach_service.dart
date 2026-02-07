@@ -344,7 +344,7 @@ $statsContext
       case 'en':
         return 'Hello! How can I help you today?';
       default:
-        return 'Bonjour! Comment puis-je t\'aider aujourd\'hui?';
+        return 'Comment puis-je t\'aider aujourd\'hui?';
     }
   }
   

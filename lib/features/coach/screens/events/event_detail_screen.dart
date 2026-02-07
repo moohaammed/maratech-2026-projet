@@ -3,6 +3,8 @@ import 'package:add_2_calendar/add_2_calendar.dart' as calendar;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
@@ -57,9 +59,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
-  Future<void> _openMap(String location) async {
-    final query = Uri.encodeComponent(location);
-    final googleUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$query");
+  Future<void> _openMap(String location, double? lat, double? lng) async {
+    Uri googleUrl;
+    if (lat != null && lng != null) {
+      googleUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
+    } else {
+      final query = Uri.encodeComponent(location);
+      googleUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$query");
+    }
     
     try {
       if (await canLaunchUrl(googleUrl)) {
@@ -214,12 +221,49 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 _buildHeader(context, event),
                 const SizedBox(height: 16),
                 
+                if (event.latitude != null && event.longitude != null) ...[
+                  Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: LatLng(event.latitude!, event.longitude!),
+                          initialZoom: 14.0,
+                          interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.example.impact',
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: LatLng(event.latitude!, event.longitude!),
+                                width: 40,
+                                height: 40,
+                                child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 // Quick Actions
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => _openMap(event.location),
+                        onPressed: () => _openMap(event.location, event.latitude, event.longitude),
                         icon: const Icon(Icons.map, size: 20),
                         label: Text(_T('Carte', 'Map', 'خريطة')),
                         style: ElevatedButton.styleFrom(

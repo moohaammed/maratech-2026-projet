@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/ai_coach_widget.dart';
+import '../../core/services/accessibility_service.dart';
 
 // Translation Helper
 String _T(BuildContext context, String fr, String en, String ar) {
-  final lang = Provider.of<AccessibilityProvider>(context).languageCode;
+  final lang = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
   if (lang == 'ar') return ar;
   if (lang == 'en') return en;
   return fr;
@@ -29,58 +32,47 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final FlutterTts _tts = FlutterTts();
-
   @override
   void initState() {
     super.initState();
-    _initTTS();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _registerCommands();
+    });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncLanguage();
-  }
-
-  Future<void> _syncLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final langCode = prefs.getString('languageCode');
-    if (langCode != null) _updateTTSLanguage(langCode);
-  }
-
-  Future<void> _updateTTSLanguage(String langCode) async {
-    String ttsCode = 'fr-FR';
-    if (langCode == 'ar') ttsCode = 'ar-SA';
-    if (langCode == 'en') ttsCode = 'en-US';
-    await _tts.setLanguage(ttsCode);
-  }
-
-  Future<void> _initTTS() async {
-    final prefs = await SharedPreferences.getInstance();
-    final langCode = prefs.getString('languageCode') ?? 'fr';
+  void _registerCommands() {
+    final service = Provider.of<AccessibilityService>(context, listen: false);
+    // French
+    service.registerVoiceCommand('accueil', () => setState(() => _currentIndex = 0));
+    service.registerVoiceCommand('événements', () => setState(() => _currentIndex = 1));
+    service.registerVoiceCommand('club', () => setState(() => _currentIndex = 2));
+    service.registerVoiceCommand('profil', () => setState(() => _currentIndex = 3));
     
-    String ttsCode = 'fr-FR';
-    if (langCode == 'ar') ttsCode = 'ar-SA';
-    if (langCode == 'en') ttsCode = 'en-US';
+    // English
+    service.registerVoiceCommand('home', () => setState(() => _currentIndex = 0));
+    service.registerVoiceCommand('events', () => setState(() => _currentIndex = 1));
+    service.registerVoiceCommand('profile', () => setState(() => _currentIndex = 3));
     
-    await _tts.setLanguage(ttsCode);
-    await _tts.setSpeechRate(0.5);
+    // Arabic
+    service.registerVoiceCommand('الرئيسية', () => setState(() => _currentIndex = 0));
+    service.registerVoiceCommand('أحداث', () => setState(() => _currentIndex = 1));
+    service.registerVoiceCommand('الأحداث', () => setState(() => _currentIndex = 1));
+    service.registerVoiceCommand('النادي', () => setState(() => _currentIndex = 2));
+    service.registerVoiceCommand('نادي', () => setState(() => _currentIndex = 2));
+    service.registerVoiceCommand('الملف الشخصي', () => setState(() => _currentIndex = 3));
+    service.registerVoiceCommand('ملفي', () => setState(() => _currentIndex = 3));
   }
 
   Future<void> _speak(String text) async {
     final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    // Only speak if user has visual impairments or dyslexia
     if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
-      await _tts.setVolume(1.0);
-      await _tts.stop();
-      await _tts.speak(text);
+      Provider.of<AccessibilityService>(context, listen: false).speak(text);
     }
   }
 
   @override
   void dispose() {
-    _tts.stop();
+    // Optional: service.clearVoiceCommands(); implementation dependent on flow
     super.dispose();
   }
 
@@ -197,75 +189,7 @@ class _HomeTabState extends State<_HomeTab> {
   bool _isLoading = true;
   int _notificationCount = 2; // Placeholder
 
-  Stream<QuerySnapshot>? _eventsStream;
 
-  @override
-  void initState() {
-    super.initState();
-    _initTTS();
-    _loadUserData();
-    _initEventsStream();
-    
-    // Ensure we have the latest profile for this user
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AccessibilityProvider>(context, listen: false).loadProfile();
-    });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncLanguage();
-  }
-
-  Future<void> _syncLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final langCode = prefs.getString('languageCode');
-    if (langCode != null) _updateTTSLanguage(langCode);
-  }
-
-  Future<void> _updateTTSLanguage(String langCode) async {
-    String ttsCode = 'fr-FR';
-    if (langCode == 'ar') ttsCode = 'ar-SA';
-    if (langCode == 'en') ttsCode = 'en-US';
-    await _tts.setLanguage(ttsCode);
-  }
-
-  void _initEventsStream() {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    _eventsStream = FirebaseFirestore.instance
-        .collection('events')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
-        .orderBy('date')
-        .limit(10)
-        .snapshots();
-  }
-
-  // TTS for Home Content
-  final FlutterTts _tts = FlutterTts();
-  Future<void> _initTTS() async {
-    final prefs = await SharedPreferences.getInstance();
-    final langCode = prefs.getString('languageCode') ?? 'fr';
-    
-    String ttsCode = 'fr-FR';
-    if (langCode == 'ar') ttsCode = 'ar-SA';
-    if (langCode == 'en') ttsCode = 'en-US';
-    
-    await _tts.setLanguage(ttsCode);
-    await _tts.setSpeechRate(0.5);
-  }
-
-  Future<void> _speak(String text) async {
-    if (!mounted) return;
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    // Only speak if user has visual impairments or dyslexia
-    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
-      await _tts.setVolume(1.0);
-      await _tts.stop();
-      await _tts.speak(text);
-    }
-  }
 
   Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -295,9 +219,50 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
+  Stream<QuerySnapshot>? _eventsStream;
+  Stream<QuerySnapshot>? _historyStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _initStreams();
+    
+    // Ensure we have the latest profile for this user
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AccessibilityProvider>(context, listen: false).loadProfile();
+    });
+  }
+
+  void _initStreams() {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    _eventsStream = FirebaseFirestore.instance
+        .collection('events')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+        .orderBy('date')
+        .limit(10)
+        .snapshots();
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _historyStream = FirebaseFirestore.instance
+          .collection('events')
+          .where('participants', arrayContains: user.uid)
+          .snapshots();
+    }
+  }
+
+  Future<void> _speak(String text) async {
+    if (!mounted) return;
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
+      Provider.of<AccessibilityService>(context, listen: false).speak(text);
+    }
+  }
+
   @override
   void dispose() {
-    _tts.stop();
     super.dispose();
   }
 
@@ -546,79 +511,69 @@ class _HomeTabState extends State<_HomeTab> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Today's Run Section
-                            _buildSectionHeader(
-                              icon: '🏃',
-                              title: _T(context, "Course d'aujourd'hui", "Today's Run", "ركض اليوم"),
-                              textScale: textScale,
-                              textColor: textColor,
-                              boldText: boldText,
-                            ),
-                            SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                            
-                            if (todayEvents.isNotEmpty) ...todayEvents.map((doc) {
-                                final data = doc.data() as Map<String, dynamic>;
-                                final date = (data['date'] as Timestamp).toDate();
-                                final timeStr = "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
-                                final participants = List<String>.from(data['participants'] ?? []);
+                            // History Section (Attended Events)
+                            StreamBuilder<QuerySnapshot>(
+                              stream: _historyStream,
+                              builder: (context, historySnapshot) {
+                                if (!historySnapshot.hasData) return const SizedBox.shrink();
                                 
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16.0),
-                                  child: _buildTodayEventCard(
-                                    eventId: doc.id,
-                                    title: data['title'] ?? _T(context, 'Entraînement', 'Training', 'تدريب'),
-                                    time: timeStr,
-                                    location: data['location'] ?? 'Stade',
-                                    distance: data['distance'] ?? 'Unknown',
-                                    participants: participants,
-                                    groupName: data['group'] ?? 'Tous',
-                                    description: data['description'] ?? '',
-                                    textScale: textScale,
-                                    highContrast: highContrast,
-                                    boldText: boldText,
-                                    textColor: textColor,
-                                    secondaryTextColor: secondaryTextColor,
-                                    primaryColor: primaryColor,
-                                    groupColor: _getGroupColor(), // dynamic based on user group or event group? User group for match logic? Let's use User's group logic for coloring
-                                    onRegister: () => _toggleRegistration(doc.id, participants),
-                                  ),
-                                );
-                            }).toList()
-                            else
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: highContrast ? Colors.white10 : Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  _T(context, "Pas d'événement prévu aujourd'hui. Repos! 😴", "No events scheduled today. Rest! 😴", "لا توجد أحداث اليوم. استرح! 😴"),
-                                  style: TextStyle(
-                                    fontSize: 16 * textScale,
-                                    color: secondaryTextColor,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                            
-                            SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                                final historyEvents = historySnapshot.data!.docs.where((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  final date = (data['date'] as Timestamp).toDate();
+                                  return date.isBefore(DateTime.now());
+                                }).toList();
+                                
+                                historyEvents.sort((a, b) { // Sort desc
+                                  final dateA = (a['date'] as Timestamp).toDate();
+                                  final dateB = (b['date'] as Timestamp).toDate();
+                                  return dateB.compareTo(dateA);
+                                });
+                                
+                                final recentHistory = historyEvents.take(3).toList();
+                                
+                                if (recentHistory.isEmpty) return const SizedBox.shrink();
 
-                            // Quick Actions (Keep static for now as requested or make dynamic later)
-                             _buildSectionHeader(
-                              icon: '⚡',
-                              title: _T(context, 'Actions rapides', 'Quick Actions', 'إجراءات سريعة'),
-                              textScale: textScale,
-                              textColor: textColor,
-                              boldText: boldText,
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildSectionHeader(
+                                      icon: '📜',
+                                      title: _T(context, 'Historique', 'History', 'تاريخ'),
+                                      textScale: textScale,
+                                      textColor: textColor,
+                                      boldText: boldText,
+                                    ),
+                                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                                    ...recentHistory.map((doc) {
+                                        final data = doc.data() as Map<String, dynamic>;
+                                        final date = (data['date'] as Timestamp).toDate();
+                                        final timeStr = "${date.day}/${date.month} ${date.year}";
+                                        
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 12.0),
+                                          child: _buildUpcomingEventCard(
+                                            eventId: doc.id,
+                                            title: data['title'] ?? '',
+                                            date: timeStr,
+                                            time: '',
+                                            location: data['location'] ?? '',
+                                            distance: data['distance'] ?? '',
+                                            group: data['group'] ?? '',
+                                            groupColor: Colors.grey,
+                                            textScale: textScale,
+                                            highContrast: highContrast,
+                                            boldText: boldText,
+                                            textColor: textColor,
+                                            secondaryTextColor: secondaryTextColor,
+                                            eventData: data,
+                                          ),
+                                        );
+                                    }).toList(),
+                                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                                  ],
+                                );
+                              }
                             ),
-                            SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                            _buildQuickActions(
-                              textScale: textScale,
-                              highContrast: highContrast,
-                              boldText: boldText,
-                              ),
-                            
-                            SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
                             // Upcoming Events
                             _buildSectionHeader(
@@ -640,6 +595,7 @@ class _HomeTabState extends State<_HomeTab> {
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12.0),
                                   child: _buildUpcomingEventCard(
+                                    eventId: doc.id,
                                     title: data['title'] ?? _T(context, 'Entraînement', 'Training', 'تدريب'),
                                     date: dayStr,
                                     time: timeStr,
@@ -652,6 +608,7 @@ class _HomeTabState extends State<_HomeTab> {
                                     boldText: boldText,
                                     textColor: textColor,
                                     secondaryTextColor: secondaryTextColor,
+                                    eventData: data,
                                   ),
                                 );
                             }).toList()
@@ -757,7 +714,7 @@ class _HomeTabState extends State<_HomeTab> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Bonjour,',
+                                _T(context, 'Bonjour', 'Hello', 'مرحباً'),
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 16 * textScale,
@@ -1245,6 +1202,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Widget _buildUpcomingEventCard({
+    required String eventId,
     required String title,
     required String date,
     required String time,
@@ -1257,6 +1215,7 @@ class _HomeTabState extends State<_HomeTab> {
     required bool boldText,
     required Color textColor,
     required Color secondaryTextColor,
+    required Map<String, dynamic> eventData,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1278,7 +1237,7 @@ class _HomeTabState extends State<_HomeTab> {
           onTap: () {
              final speakText = "${_T(context, 'Événement à venir', 'Upcoming event', 'حدث قادم')} : $title ${_T(context, 'le', 'on', 'يوم')} $date ${_T(context, 'à', 'at', 'الساعة')} $time. $location. $distance. ${_T(context, 'Groupe', 'Group', 'مجموعة')} $group.";
             _speak(speakText);
-            // TODO: Navigate to event details
+            Navigator.pushNamed(context, '/event-details', arguments: eventId);
           },
           child: Padding(
             padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
@@ -1459,7 +1418,7 @@ class _EventsTabState extends State<_EventsTab> {
       backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(
-          'Tous les événements',
+          _T(context, 'Tous les événements', 'All Events', 'جميع الأحداث'),
           style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold),
         ),
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
@@ -1491,7 +1450,7 @@ class _EventsTabState extends State<_EventsTab> {
                   Icon(Icons.event_busy, size: 64 * textScale, color: Colors.grey),
                   SizedBox(height: 16 * textScale),
                   Text(
-                    'Aucun événement à venir',
+                    _T(context, 'Aucun événement à venir', 'No upcoming events', 'لا توجد أحداث قادمة'),
                     style: TextStyle(
                       fontSize: 18 * textScale,
                       color: textColor.withOpacity(0.7),
@@ -1502,8 +1461,8 @@ class _EventsTabState extends State<_EventsTab> {
             );
           }
 
-          // Build markers from events
-          final Set<Marker> markers = {};
+          // Build markers from events for OpenStreetMap
+          final List<Marker> markers = [];
           LatLng? initialPosition;
           
           for (var doc in events) {
@@ -1522,14 +1481,23 @@ class _EventsTabState extends State<_EventsTab> {
                   
                   markers.add(
                     Marker(
-                      markerId: MarkerId(doc.id),
-                      position: position,
-                      infoWindow: InfoWindow(
-                        title: data['title'] ?? 'Événement',
-                        snippet: meetingPoint['address'] ?? '',
-                      ),
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueRed,
+                      point: position,
+                      width: 40,
+                      height: 40,
+                      child: GestureDetector(
+                        onTap: () async {
+                           final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                           if (await canLaunchUrl(url)) {
+                             await launchUrl(url, mode: LaunchMode.externalApplication);
+                           } else {
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                 SnackBar(content: Text("${data['title'] ?? 'Événement'} - ${meetingPoint['address'] ?? ''}"))
+                               );
+                             }
+                           }
+                        },
+                        child: Icon(Icons.location_on, color: Colors.red, size: 40),
                       ),
                     ),
                   );
@@ -1561,16 +1529,19 @@ class _EventsTabState extends State<_EventsTab> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: initialPosition,
-                        zoom: 12,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: initialPosition!,
+                        initialZoom: 13.0,
+                        interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
                       ),
-                      markers: markers,
-                      mapType: MapType.normal,
-                      zoomControlsEnabled: false,
-                      myLocationButtonEnabled: false,
-                      liteModeEnabled: true, // Use lite mode for better performance in list
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.impact',
+                        ),
+                        MarkerLayer(markers: markers),
+                      ],
                     ),
                   ),
                 )
@@ -1739,7 +1710,7 @@ class _EventsTabState extends State<_EventsTab> {
                             ),
                           ),
                           Text(
-                            _getMonthName(date.month),
+                            _getMonthName(context, date.month),
                             style: TextStyle(
                               fontSize: 12 * textScale,
                               fontWeight: FontWeight.bold,
@@ -1799,7 +1770,7 @@ class _EventsTabState extends State<_EventsTab> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     child: Text(
-                      isRegistered ? "Inscrit (Appuyez pour annuler)" : "S'inscrire",
+                      isRegistered ? _T(context, "Inscrit (Appuyez pour annuler)", "Registered (Tap to cancel)", "مسجل (انقر للإلغاء)") : _T(context, "S'inscrire", "Register", "تسجيل"),
                       style: TextStyle(
                         fontWeight: FontWeight.bold, 
                         fontSize: 14 * textScale
@@ -1815,12 +1786,19 @@ class _EventsTabState extends State<_EventsTab> {
     );
   }
 
-  String _getMonthName(int month) {
-    const months = ['JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEP', 'OCT', 'NOV', 'DEC'];
-    return months[month - 1];
+  String _getMonthName(BuildContext context, int month) {
+    final monthsFr = ['JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEP', 'OCT', 'NOV', 'DEC'];
+    final monthsEn = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    final monthsAr = ['جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان', 'جويلية', 'أوت', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    
+    final lang = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
+    if (lang == 'ar') return monthsAr[month - 1];
+    if (lang == 'en') return monthsEn[month - 1];
+    return monthsFr[month - 1];
   }
 }
 
+/// Club Tab - Club information
 /// Club Tab - Club information
 class _ClubTab extends StatelessWidget {
   final Future<void> Function(String)? onSpeak;
@@ -1837,11 +1815,18 @@ class _ClubTab extends StatelessWidget {
     final textColor = highContrast ? Colors.white : AppColors.textPrimary;
     final secondaryTextColor = highContrast ? Colors.white70 : AppColors.textSecondary;
 
+    final historyText = _T(
+      context, 
+      "Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux.\n\nNotre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied. Nous organisons des sorties hebdomadaires, des participations aux marathons internationaux et des événements caritatifs.",
+      "Founded in 2015 by a group of running enthusiasts, Running Club Tunis started with just 10 members. Today, we are proud to count over 500 active runners of all levels.\n\nOur mission is to promote health, well-being, and community spirit through running. We organize weekly outings, participation in international marathons, and charity events.",
+      "تأسس نادي الجري بتونس في عام 2015 من قبل مجموعة من هواة الجري، وبدأ بـ 10 أعضاء فقط. واليوم، نحن فخورون بوجود أكثر من 500 عداء نشط من جميع المستويات.\n\nمهمتنا هي تعزيز الصحة والرفاهية وروح المجتمع من خلال الجري. ننظم نزهات أسبوعية، ومشاركات في الماراثونات الدولية، وفعاليات خيرية."
+    );
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(
-          'Le Club',
+          _T(context, 'Le Club', 'The Club', 'النادي'),
           style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold),
         ),
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
@@ -1858,7 +1843,7 @@ class _ClubTab extends StatelessWidget {
               child: Column(
                 children: [
                    InkWell(
-                    onTap: () => onSpeak?.call("Running Club Tunis. Depuis 2015."),
+                    onTap: () => onSpeak?.call("Running Club Tunis. ${_T(context, 'Depuis 2015', 'Since 2015', 'منذ 2015')}."),
                     child: Container(
                       width: 100 * textScale.clamp(1.0, 1.3),
                       height: 100 * textScale.clamp(1.0, 1.3),
@@ -1888,9 +1873,9 @@ class _ClubTab extends StatelessWidget {
                   ),
                   SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
                   InkWell(
-                    onTap: () => onSpeak?.call("Depuis 2015"),
+                    onTap: () => onSpeak?.call(_T(context, "Depuis 2015", "Since 2015", "منذ 2015")),
                     child: Text(
-                      "Depuis 2015",
+                      _T(context, "Depuis 2015", "Since 2015", "منذ 2015"),
                       style: TextStyle(
                         fontSize: 16 * textScale,
                         color: secondaryTextColor,
@@ -1907,16 +1892,15 @@ class _ClubTab extends StatelessWidget {
             // History Section
             _buildSectionHeader(
               icon: Icons.history_edu,
-              title: "Notre Histoire",
+              title: _T(context, "Notre Histoire", "Our History", "تاريخنا"),
               textScale: textScale,
               textColor: primaryColor,
             ),
             SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
             InkWell(
-              onTap: () => onSpeak?.call("Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux. Notre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied."),
+              onTap: () => onSpeak?.call(historyText),
               child: Text(
-                "Fondé en 2015 par un groupe de passionnés de course à pied, le Running Club Tunis a commencé avec seulement 10 membres. Aujourd'hui, nous sommes fiers de compter plus de 500 coureurs actifs de tous niveaux.\n\n"
-                "Notre mission est de promouvoir la santé, le bien-être et l'esprit de communauté à travers la course à pied. Nous organisons des sorties hebdomadaires, des participations aux marathons internationaux et des événements caritatifs.",
+                historyText,
                 style: TextStyle(
                   fontSize: 14 * textScale,
                   height: 1.5,
@@ -1930,28 +1914,37 @@ class _ClubTab extends StatelessWidget {
             // Values Section
             _buildSectionHeader(
               icon: Icons.star_rate_rounded,
-              title: "Nos Valeurs",
+              title: _T(context, "Nos Valeurs", "Our Values", "قيمنا"),
               textScale: textScale,
               textColor: primaryColor,
             ),
             SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-            _buildValueItem("Inclusion", "Ouvert à tous, quel que soit le niveau ou l'âge.", Icons.diversity_3, textScale, textColor, primaryColor),
-            _buildValueItem("Dépassement", "Nous encourageons chacun à atteindre ses objectifs personnels.", Icons.trending_up, textScale, textColor, primaryColor),
-            _buildValueItem("Solidarité", "On ne laisse personne derrière. On court ensemble.", Icons.volunteer_activism, textScale, textColor, primaryColor),
+            _buildValueItem(
+              _T(context, "Inclusion", "Inclusion", "الشمول"),
+              _T(context, "Ouvert à tous, quel que soit le niveau ou l'âge.", "Open to everyone, regardless of level or age.", "مفتوح للجميع، بغض النظر عن المستوى أو العمر."),
+              Icons.diversity_3, textScale, textColor, primaryColor, context),
+            _buildValueItem(
+              _T(context, "Dépassement", "Excellence", "التفوق"),
+              _T(context, "Nous encourageons chacun à atteindre ses objectifs personnels.", "We encourage everyone to reach their personal goals.", "نحن نشجع الجميع على تحقيق أهدافهم الشخصية."),
+              Icons.trending_up, textScale, textColor, primaryColor, context),
+            _buildValueItem(
+              _T(context, "Solidarité", "Solidarity", "التضامن"),
+              _T(context, "On ne laisse personne derrière. On court ensemble.", "We leave no one behind. We run together.", "لا نترك أحداً خلفنا. نركض معاً."),
+              Icons.volunteer_activism, textScale, textColor, primaryColor, context),
 
             SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
             // Contact Section
             _buildSectionHeader(
               icon: Icons.contact_support,
-              title: "Contactez-nous",
+              title: _T(context, "Contactez-nous", "Contact Us", "اتصل بنا"),
               textScale: textScale,
               textColor: primaryColor,
             ),
             SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
             _buildContactRow(Icons.email, "contact@runningclubtunis.com", textScale, textColor),
             _buildContactRow(Icons.phone, "+216 71 123 456", textScale, textColor),
-            _buildContactRow(Icons.location_on, "Parc du Belvédère, Tunis", textScale, textColor),
+            _buildContactRow(Icons.location_on, _T(context, "Parc du Belvédère, Tunis", "Belvedere Park, Tunis", "منتزه البلفيدير، تونس"), textScale, textColor),
             
             SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
           ],
@@ -1988,7 +1981,7 @@ class _ClubTab extends StatelessWidget {
     );
   }
 
-  Widget _buildValueItem(String title, String description, IconData icon, double textScale, Color textColor, Color iconColor) {
+  Widget _buildValueItem(String title, String description, IconData icon, double textScale, Color textColor, Color iconColor, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: InkWell(
@@ -2053,8 +2046,33 @@ class _ClubTab extends StatelessWidget {
 }
 
 /// Profile Tab - User profile and settings
-class _ProfileTab extends StatelessWidget {
+class _ProfileTab extends StatefulWidget {
   const _ProfileTab();
+
+  @override
+  State<_ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<_ProfileTab> {
+  String _userName = 'Membre du Club';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists && mounted) {
+        setState(() {
+          _userName = doc.data()?['fullName'] ?? doc.data()?['name'] ?? 'Membre';
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2070,7 +2088,7 @@ class _ProfileTab extends StatelessWidget {
       backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(
-          'Profil & Paramètres',
+          _T(context, 'Profil & Paramètres', 'Profile & Settings', 'الملف الشخصي والإعدادات'),
           style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold),
         ),
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
@@ -2087,11 +2105,19 @@ class _ProfileTab extends StatelessWidget {
                 CircleAvatar(
                   radius: 40 * textScale.clamp(1.0, 1.3),
                   backgroundColor: primaryColor.withOpacity(0.1),
-                  child: Icon(Icons.person, size: 48 * textScale.clamp(1.0, 1.3), color: primaryColor),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/logo.jpg',
+                      width: 80 * textScale.clamp(1.0, 1.3),
+                      height: 80 * textScale.clamp(1.0, 1.3),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(Icons.person, size: 48 * textScale.clamp(1.0, 1.3), color: primaryColor),
+                    ),
+                  ),
                 ),
                 SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
                 Text(
-                  'Membre du Club',
+                  _userName,
                   style: TextStyle(
                     fontSize: 20 * textScale,
                     fontWeight: FontWeight.bold,
@@ -2106,11 +2132,11 @@ class _ProfileTab extends StatelessWidget {
           SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
           
           // Accessibility Settings
-          _buildSectionHeader("Accessibilité Visuelle", textScale, textColor),
+          _buildSectionHeader(_T(context, "Accessibilité Visuelle", "Visual Accessibility", "إمكانية الوصول البصري"), textScale, textColor),
           _buildSwitchTile(
             context,
-            title: "Mode Dyslexie",
-            subtitle: "Police et espacements adaptés",
+            title: _T(context, "Mode Dyslexie", "Dyslexic Mode", "وضع عسر القراءة"),
+            subtitle: _T(context, "Police et espacements adaptés", "Adapted font and spacing", "الخط والمسافات المتكيفة"),
             value: profile.dyslexicMode,
             onChanged: (val) => accessibility.updateProfile(profile.copyWith(dyslexicMode: val)),
             textScale: textScale,
@@ -2119,8 +2145,8 @@ class _ProfileTab extends StatelessWidget {
           ),
           _buildSwitchTile(
             context,
-            title: "Contraste Élevé",
-            subtitle: "Couleurs distinctes (Noir/Blanc/Jaune)",
+            title: _T(context, "Contraste Élevé", "High Contrast", "تباين عالي"),
+            subtitle: _T(context, "Couleurs distinctes (Noir/Blanc/Jaune)", "Distinct colors (Black/White/Yellow)", "ألوان مميزة (أسود/أبيض/أصفر)"),
             value: profile.highContrast,
             onChanged: (val) => accessibility.updateProfile(profile.copyWith(highContrast: val)),
             textScale: textScale,
@@ -2136,7 +2162,7 @@ class _ProfileTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Taille du texte: ${(profile.textSize * 100).toInt()}%",
+                  "${_T(context, 'Taille du texte', 'Text Size', 'حجم النص')}: ${(profile.textSize * 100).toInt()}%",
                   style: TextStyle(fontSize: 16 * textScale, fontWeight: FontWeight.w600, color: textColor),
                 ),
                 Slider(
@@ -2154,11 +2180,11 @@ class _ProfileTab extends StatelessWidget {
 
           SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
           
-          _buildSectionHeader("Audio & Assistance", textScale, textColor),
+          _buildSectionHeader(_T(context, "Audio & Assistance", "Audio & Assistance", "الصوت والمساعدة"), textScale, textColor),
           _buildSwitchTile(
              context,
-             title: "Vibrations",
-             subtitle: "Retour haptique au toucher",
+             title: _T(context, "Vibrations", "Vibrations", "الاهتزازات"),
+             subtitle: _T(context, "Retour haptique au toucher", "Haptic feedback on touch", "ردود الفعل اللمسية"),
              value: profile.vibrationEnabled,
              onChanged: (val) => accessibility.updateProfile(profile.copyWith(vibrationEnabled: val)),
              textScale: textScale,
@@ -2176,15 +2202,12 @@ class _ProfileTab extends StatelessWidget {
               onPressed: () async {
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
-                  await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
-                  if (context.mounted) {
-                    Navigator.pushReplacementNamed(context, '/');
-                  }
+                   Navigator.pushNamedAndRemoveUntil(context, '/accessibility-wizard', (route) => false);
                 }
               },
               icon: Icon(Icons.logout, size: 20 * textScale.clamp(1.0, 1.2)),
               label: Text(
-                'Déconnexion',
+                _T(context, 'Déconnexion', 'Logout', 'تسجيل الخروج'),
                 style: TextStyle(
                   fontSize: 16 * textScale,
                   fontWeight: FontWeight.bold,

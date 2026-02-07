@@ -23,6 +23,8 @@ class EventModel {
   final DateTime date;
   final String time;                        // e.g. "18:00"
   final String location;
+  final double? latitude;
+  final double? longitude;
   final double? distanceKm;
   final DateTime createdAt;
   final String? createdBy;                  // User ID of creator (coach/admin)
@@ -37,6 +39,8 @@ class EventModel {
     required this.date,
     required this.time,
     required this.location,
+    this.latitude,
+    this.longitude,
     this.distanceKm,
     required this.createdAt,
     this.createdBy,
@@ -70,7 +74,9 @@ class EventModel {
               : DateTime.parse(data['date'].toString()))
           : DateTime.now(),
       time: data['time'] ?? '09:00',
-      location: data['location'] ?? '',
+      location: data['location'] ?? ((data['meetingPoint'] as Map?)?['address'] as String?) ?? '',
+      latitude: ((data['meetingPoint'] as Map?)?['coordinates'] as Map?)?['latitude'] as double? ?? ((data['meetingPoint'] as Map?)?['coordinates'] as Map?)?['lat'] as double?,
+      longitude: ((data['meetingPoint'] as Map?)?['coordinates'] as Map?)?['longitude'] as double? ?? ((data['meetingPoint'] as Map?)?['coordinates'] as Map?)?['lng'] as double?,
       distanceKm: (data['distanceKm'] as num?)?.toDouble(),
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp).toDate()
