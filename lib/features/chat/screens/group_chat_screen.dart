@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../../../core/services/group_chat_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../accessibility/providers/accessibility_provider.dart';
 import '../models/message_model.dart';
 
 class GroupChatScreen extends StatefulWidget {
@@ -105,37 +107,60 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : Colors.white;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
 
     if (_isLoading) {
       return Scaffold(
+        backgroundColor: bgColor,
         appBar: AppBar(
-          title: const Text('Messagerie du groupe'),
-          backgroundColor: AppColors.primary,
+          title: Text('Messagerie du groupe', style: TextStyle(fontSize: 16 * textScale)),
+          backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+          foregroundColor: highContrast ? primaryColor : Colors.white,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator(color: primaryColor)),
       );
     }
 
     if (user == null || _userGroupId == null) {
       return Scaffold(
+        backgroundColor: bgColor,
         appBar: AppBar(
-          title: const Text('Messagerie du groupe'),
-          backgroundColor: AppColors.primary,
+          title: Text('Messagerie du groupe', style: TextStyle(fontSize: 16 * textScale)),
+          backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+          foregroundColor: highContrast ? primaryColor : Colors.white,
         ),
-        body: const Center(
-          child: Text('Vous devez être connecté et assigné à un groupe'),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.group_off_outlined, size: 64 * textScale, color: textColor.withOpacity(0.5)),
+              SizedBox(height: 16 * textScale),
+              Text(
+                'Vous devez être connecté et assigné à un groupe',
+                style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 14 * textScale),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Messagerie du groupe',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16 * textScale),
         ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: 0,
       ),
       body: Column(
@@ -146,20 +171,54 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               stream: _chatService.subscribeToMessages(_userGroupId!),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Erreur: ${snapshot.error}'));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 48 * textScale, color: AppColors.error),
+                        SizedBox(height: 16 * textScale),
+                        Text(
+                          'Impossible de charger les messages',
+                          style: TextStyle(color: textColor, fontSize: 14 * textScale),
+                        ),
+                        SizedBox(height: 12 * textScale),
+                        ElevatedButton.icon(
+                          onPressed: () => setState(() {}),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Réessayer'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: highContrast ? Colors.black : Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator(color: primaryColor));
                 }
 
                 final messages = snapshot.data ?? [];
 
                 if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Aucun message pour l\'instant',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline, size: 64 * textScale, color: textColor.withOpacity(0.3)),
+                        SizedBox(height: 16 * textScale),
+                        Text(
+                          'Aucun message pour l\'instant',
+                          style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 14 * textScale),
+                        ),
+                        SizedBox(height: 8 * textScale),
+                        Text(
+                          'Soyez le premier à écrire!',
+                          style: TextStyle(color: primaryColor, fontSize: 12 * textScale, fontWeight: FontWeight.w500),
+                        ),
+                      ],
                     ),
                   );
                 }

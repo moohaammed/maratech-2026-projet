@@ -1117,30 +1117,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ],
         ),
         SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
-        TextButton.icon(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _T('Contactez l\'administrateur', 'Contact admin', 'اتصل بالمسؤول'), 
-                  style: TextStyle(fontSize: 14 * textScale)
-                ), 
-                backgroundColor: AppColors.info, 
-                behavior: SnackBarBehavior.floating
-              ),
-            );
-          },
-          icon: Icon(Icons.help_outline_rounded, size: 18 * textScale.clamp(1.0, 1.2)),
-          label: Flexible(
-            child: Text(
-              _T('Besoin d\'aide?', 'Need help?', 'تحتاج مساعدة؟'), 
-              style: TextStyle(fontSize: 14 * textScale),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          style: TextButton.styleFrom(foregroundColor: primaryColor),
-        ),
-        SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
         OutlinedButton.icon(
           onPressed: _continueAsGuest,
           icon: Icon(Icons.person_outline, size: 18 * textScale.clamp(1.0, 1.2)),

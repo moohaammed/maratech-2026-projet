@@ -86,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Navbar styling variables
     final navBarColor = highContrast ? AppColors.highContrastSurface : Colors.white;
-    final indicatorColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary.withOpacity(0.15);
+    final indicatorColor = highContrast ? AppColors.highContrastPrimary : AppColors.primaryLight;
     final selectedIconColor = highContrast ? Colors.black : AppColors.primary;
     final unselectedIconColor = highContrast ? Colors.white : AppColors.textSecondary;
     final labelStyle = TextStyle(
@@ -108,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: const AICoachButton(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: (80 * textScale).clamp(80.0, 120.0),
@@ -1133,7 +1134,14 @@ class _HomeTabState extends State<_HomeTab> {
             color: highContrast ? AppColors.highContrastPrimary : AppColors.primary,
             textScale: textScale,
             highContrast: highContrast,
-            onTap: () {},
+            onTap: () {
+              // Navigate to Events tab
+              if (context.findAncestorStateOfType<_HomeScreenState>() != null) {
+                context.findAncestorStateOfType<_HomeScreenState>()!.setState(() {
+                  context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 1;
+                });
+              }
+            },
           ),
         ),
         SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
@@ -1144,7 +1152,14 @@ class _HomeTabState extends State<_HomeTab> {
             color: highContrast ? Colors.cyan : AppColors.success,
             textScale: textScale,
             highContrast: highContrast,
-            onTap: () {},
+            onTap: () {
+              // Navigate to Club tab for history
+              if (context.findAncestorStateOfType<_HomeScreenState>() != null) {
+                context.findAncestorStateOfType<_HomeScreenState>()!.setState(() {
+                  context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 2;
+                });
+              }
+            },
           ),
         ),
         SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
@@ -1155,7 +1170,16 @@ class _HomeTabState extends State<_HomeTab> {
             color: highContrast ? Colors.yellow : AppColors.warning,
             textScale: textScale,
             highContrast: highContrast,
-            onTap: () {},
+            onTap: () {
+              // Show coming soon snackbar for announcements
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(_T(context, 'Bientôt disponible!', 'Coming soon!', 'قريبًا!')),
+                  backgroundColor: AppColors.info,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -2193,21 +2217,6 @@ class _ProfileTabState extends State<_ProfileTab> {
               ],
             ),
           ),
-
-          SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
-          
-          _buildSectionHeader(_T(context, "Audio & Assistance", "Audio & Assistance", "الصوت والمساعدة"), textScale, textColor),
-          _buildSwitchTile(
-             context,
-             title: _T(context, "Vibrations", "Vibrations", "الاهتزازات"),
-             subtitle: _T(context, "Retour haptique au toucher", "Haptic feedback on touch", "ردود الفعل اللمسية"),
-             value: profile.vibrationEnabled,
-             onChanged: (val) => accessibility.updateProfile(profile.copyWith(vibrationEnabled: val)),
-             textScale: textScale,
-             textColor: textColor,
-             activeColor: primaryColor,
-          ),
-
            SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
 
           // Logout

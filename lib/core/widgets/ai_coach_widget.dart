@@ -12,12 +12,13 @@ class AICoachButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton.extended(
+    return FloatingActionButton(
       heroTag: 'ai_coach_button',
       onPressed: () => _showAICoachDialog(context),
       backgroundColor: AppColors.primary,
-      icon: const Icon(Icons.smart_toy_rounded, color: Colors.white),
-      label: const Text('Coach IA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      elevation: 4,
+      child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 28),
+      tooltip: 'Coach IA',
     );
   }
 

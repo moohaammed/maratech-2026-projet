@@ -117,13 +117,21 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+    
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(_T('RCT - Invité', 'RCT - Guest', 'نادي RCT - ضيف'), 
-                   style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18 * textScale)),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,

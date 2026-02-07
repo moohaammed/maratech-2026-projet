@@ -240,10 +240,10 @@ class _SplashScreenState extends State<SplashScreen>
                     const Text(
                       'Running Club Tunis',
                       style: TextStyle(
-                        fontSize: 40,
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        letterSpacing: 2,
+                        letterSpacing: 1.5,
                         shadows: [
                           Shadow(
                             color: Colors.black54,
@@ -253,18 +253,19 @@ class _SplashScreenState extends State<SplashScreen>
                         ],
                       ),
                     ),
+                    const SizedBox(height: 8),
                     const Text(
-                      'Running Club Tunis',
+                      'Courir ensemble • نركض معًا • Run together',
                       style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white,
-                        letterSpacing: 12,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white70,
+                        letterSpacing: 0.5,
                         shadows: [
                           Shadow(
-                            color: Colors.black54,
-                            offset: Offset(2, 2),
-                            blurRadius: 8,
+                            color: Colors.black38,
+                            offset: Offset(1, 1),
+                            blurRadius: 4,
                           ),
                         ],
                       ),

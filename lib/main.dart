@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'features/accessibility/providers/accessibility_provider.dart';
 import 'core/services/accessibility_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/ai_coach_service.dart';
 
 // Screens
 import 'features/splash/splash_screen.dart';
@@ -39,6 +40,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AccessibilityProvider()),
         ChangeNotifierProvider(create: (_) => AccessibilityService()),
+        ChangeNotifierProvider(create: (_) => AICoachService()),
       ],
       child: const RctApp(),
     ),

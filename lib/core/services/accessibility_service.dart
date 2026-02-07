@@ -127,6 +127,16 @@ class AccessibilityService extends ChangeNotifier {
     _currentLanguage = language;
     await _tts.setLanguage(language.ttsCode);
     
+    // Language-specific speech rate optimization
+    double rate = 0.45; // Default French
+    if (language.code == 'ar') {
+      rate = 0.40; // Slower for Arabic clarity
+    } else if (language.code == 'en') {
+      rate = 0.48; // Slightly faster for English
+    }
+    _speechRate = rate;
+    await _tts.setSpeechRate(rate);
+    
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('languageCode', language.code);
     

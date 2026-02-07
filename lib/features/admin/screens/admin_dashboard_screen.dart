@@ -85,11 +85,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Erreur: Utilisateur non trouvé', style: TextStyle(color: textColor, fontSize: 16 * textScale)),
-              const SizedBox(height: 16),
-              ElevatedButton(
+              Icon(Icons.error_outline, size: 48 * textScale, color: AppColors.error),
+              SizedBox(height: 16 * textScale),
+              Text('Utilisateur non trouvé', style: TextStyle(color: textColor, fontSize: 18 * textScale, fontWeight: FontWeight.bold)),
+              SizedBox(height: 8 * textScale),
+              Text('Veuillez vous reconnecter', style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 14 * textScale)),
+              SizedBox(height: 24 * textScale),
+              ElevatedButton.icon(
                 onPressed: () => Navigator.pushReplacementNamed(context, '/'),
-                child: const Text('Retour Connexion'),
+                icon: const Icon(Icons.login),
+                label: const Text('Retour Connexion'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: highContrast ? Colors.black : Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 24 * textScale, vertical: 12 * textScale),
+                ),
               )
             ],
           ),
