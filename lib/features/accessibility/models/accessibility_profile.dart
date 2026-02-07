@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AccessibilityProfile {
   final String userId;
+  final String languageCode; // 'fr', 'ar', 'en'
 
   // Visual
   final String visualNeeds; // 'normal', 'low_vision', 'blind', 'colorblind'
@@ -22,6 +23,7 @@ class AccessibilityProfile {
   // Constructor with defaults (WCAG Standard)
   AccessibilityProfile({
     required this.userId,
+    this.languageCode = 'fr',
     this.visualNeeds = 'normal',
     this.textSize = 1.0,
     this.highContrast = false,
@@ -56,6 +58,7 @@ class AccessibilityProfile {
     
     return AccessibilityProfile(
       userId: id,
+      languageCode: data['languageCode'] ?? 'fr',
       visualNeeds: visual['needsCategory'] ?? 'normal',
       textSize: textSize,
       highContrast: isHighContrast,
@@ -75,6 +78,7 @@ class AccessibilityProfile {
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
+      'languageCode': languageCode,
       'visual': {
         'needsCategory': visualNeeds,
         'textSize': (textSize * 100).toInt(),
@@ -99,6 +103,7 @@ class AccessibilityProfile {
 
   AccessibilityProfile copyWith({
     String? userId,
+    String? languageCode,
     String? visualNeeds,
     double? textSize,
     bool? highContrast,
@@ -112,6 +117,7 @@ class AccessibilityProfile {
   }) {
     return AccessibilityProfile(
       userId: userId ?? this.userId,
+      languageCode: languageCode ?? this.languageCode,
       visualNeeds: visualNeeds ?? this.visualNeeds,
       textSize: textSize ?? this.textSize,
       highContrast: highContrast ?? this.highContrast,
