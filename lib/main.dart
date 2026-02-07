@@ -29,6 +29,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   
+  // Initialize Notification Service (FCM + Local)
+  final notificationService = NotificationService();
+  await notificationService.init();
+  notificationService.startListeningToEvents();
+  
   runApp(
     MultiProvider(
       providers: [

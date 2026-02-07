@@ -281,6 +281,9 @@ class NotificationService {
       'High Importance Notifications',
       importance: Importance.max,
       priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      fullScreenIntent: true,
     );
 
     final NotificationDetails details = NotificationDetails(android: androidDetails);
