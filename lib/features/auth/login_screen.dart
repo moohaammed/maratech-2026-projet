@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Login Screen - Simple login with name + PIN
 /// No signup - admin creates accounts
@@ -27,15 +30,195 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
+    
+    final name = _nameController.text.trim();
+    final pin = _pinController.text.trim();
+    
+    try {
+      debugPrint('🔍 Attempting login for: $name');
 
-    // TODO: Implement actual Firebase login
-    await Future.delayed(const Duration(seconds: 1));
+      // 1. Find the User's Email from Firestore by Name to get their Email
+      final snapshot = await FirebaseFirestore.instance.collection('users').get();
+      
+      QueryDocumentSnapshot<Map<String, dynamic>>? userDoc;
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final docName = (data['fullName'] ?? data['name'] ?? '').toString().toLowerCase();
+        final docEmail = (data['email'] ?? '').toString().toLowerCase();
+        
+        final input = name.toLowerCase();
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.pushReplacementNamed(context, '/home');
+        // Check match (Name OR Email)
+        if (docName == input || docEmail == input) {
+          userDoc = doc;
+          break;
+        }
+      }
+
+      if (userDoc == null) {
+        throw Exception('Nom d\'utilisateur non trouvé.');
+      }
+
+      final email = userDoc.data()['email'];
+      debugPrint('✅ Found User: ${userDoc.id} ($email)');
+
+      // 2. Try to Sign In with Firebase Auth
+      // Strategy: Try padding the 3-digit PIN to 6 chars (000 + PIN)
+      // This solves the "6 char password" requirement while keeping UI simple.
+      final password = "000$pin"; 
+      debugPrint('🔐 Authenticating with Email: $email...');
+
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email, 
+          password: password
+        );
+        debugPrint('✅ Firebase Auth Success!');
+        
+        // 3. Update Accessibility Profile with real User ID
+        // The provider listens to Auth changes, or we can force a reload
+        if (mounted) {
+          // Optional: Force reload provider if context available
+          // Provider.of<AccessibilityProvider>(context, listen: false).loadProfile();
+          
+          setState(() => _isLoading = false);
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'wrong-password') {
+           throw Exception('Code PIN incorrect (Auth)');
+        }
+        throw e;
+      }
+
+    } catch (e) {
+      debugPrint('❌ Login Error: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString().replaceAll("Exception:", "")}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showAdminCreationMenu() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Admin User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildAdminOption('Main Admin', 'main_admin', '111'),
+            _buildAdminOption('Coach Admin', 'coach_admin', '222'),
+            _buildAdminOption('Group Admin', 'group_admin', '333'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminOption(String label, String role, String pin) {
+    return ListTile(
+      title: Text(label),
+      subtitle: Text('PIN: $pin'),
+      leading: const Icon(Icons.person_add),
+      onTap: () {
+        Navigator.pop(context);
+        _createAdminUser(label, role, pin);
+      },
+    );
+  }
+
+  Future<void> _createAdminUser(String label, String role, String pin) async {
+    setState(() => _isLoading = true);
+    try {
+      final email = '${role.replaceAll("_", "")}@test.com';
+      final password = '000$pin'; 
+      final name = 'Test $label';
+      
+      // 1. Create Auth
+      try {
+         await FirebaseAuth.instance.createUserWithEmailAndPassword(
+           email: email, 
+           password: password
+         );
+      } on FirebaseAuthException catch (e) {
+         if (e.code != 'email-already-in-use') rethrow;
+         // If exists, we still update Firestore
+      }
+      
+      // 2. Create Firestore User MATCHING SCHEMA
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'userId': uid,
+          'fullName': name,
+          'email': email,
+          'phone': '+216 24 474 474',
+          
+          'cin': 'encrypted:demo$pin',
+          'pin': pin,
+          'pinHash': 'hash-$pin',
+          
+          'role': role, // <--- DYNAMIC ROLE
+          'permissions': _getPermissionsForRole(role),
+          
+          'adminLevel': role == 'main_admin' ? 1 : 2,
+          'groupId': role == 'group_admin' ? 'beginner' : null,
+          
+          'isActive': true,
+          'accountStatus': 'active',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'accountCreatedBy': 'system_debug'
+        }, SetOptions(merge: true));
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+              content: Text('✅ $label Created! Login with PIN: $pin (Name: $name)'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+       debugPrint('Error creating admin: $e');
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+       }
+    } finally {
+       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Map<String, bool> _getPermissionsForRole(String role) {
+    if (role == 'main_admin') {
+      return {
+        'canCreateEvents': true, 'canEditUsers': true, 'canDeleteUsers': true,
+        'canManageGroups': true, 'canPostAnnouncements': true, 'canViewAnalytics': true
+      };
+    } else if (role == 'coach_admin') {
+      return {
+        'canCreateEvents': true, 'canEditUsers': false, 'canDeleteUsers': false,
+        'canManageGroups': false, 'canPostAnnouncements': true, 'canViewAnalytics': true
+      };
+    } else {
+      // Group Admin
+      return {
+        'canCreateEvents': true, 'canEditUsers': true, 'canDeleteUsers': false,
+        'canManageGroups': true, 'canPostAnnouncements': true, 'canViewAnalytics': false
+      };
     }
   }
 
@@ -61,6 +244,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
+      floatingActionButton: kDebugMode ? FloatingActionButton(
+        onPressed: _showAdminCreationMenu,
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.add_moderator),
+        tooltip: 'Create Admin User',
+      ) : null,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -236,29 +425,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                       )
                                     : const Text('Se connecter'),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Visitor (Secondary Action)
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56, // Ensure hit target
-                              child: OutlinedButton.icon(
-                                onPressed: _continueAsVisitor,
-                                icon: const Icon(Icons.visibility),
-                                label: const Text('Continuer en tant que visiteur'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: colorScheme.primary,
-                                  side: BorderSide(color: colorScheme.primary),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  textStyle: TextStyle(
-                                    fontSize: 16 * (theme.textTheme.bodyMedium?.fontSize ?? 16) / 16, // Relative scale
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
                               ),
                             ),
                           ],
