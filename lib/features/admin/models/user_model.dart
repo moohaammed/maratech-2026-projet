@@ -118,10 +118,7 @@ class UserModel {
       email: data['email'] ?? '',
       phone: data['phone'] ?? '',
       cinLastDigits: data['cinLastDigits'] ?? '',
-      role: UserRole.values.firstWhere(
-        (e) => e.toString() == data['role'] || e.name == data['role'],
-        orElse: () => UserRole.visitor,
-      ),
+      role: _parseUserRole(data['role']),
       assignedGroup: data['assignedGroup'] != null
           ? RunningGroup.values.firstWhere(
               (e) => e.toString() == data['assignedGroup'] || e.name == data['assignedGroup'],
@@ -138,6 +135,28 @@ class UserModel {
       isActive: data['isActive'] ?? true,
       permissions: Map<String, bool>.from(data['permissions'] ?? {}),
     );
+  }
+
+  static UserRole _parseUserRole(dynamic roleData) {
+    if (roleData == null) return UserRole.visitor;
+    
+    final roleStr = roleData.toString().toLowerCase();
+    
+    if (roleStr == 'main_admin' || roleStr == 'mainadmin') return UserRole.mainAdmin;
+    if (roleStr == 'coach_admin' || roleStr == 'coachadmin') return UserRole.coachAdmin;
+    if (roleStr == 'group_admin' || roleStr == 'groupadmin') return UserRole.groupAdmin;
+    if (roleStr == 'sub_admin' || roleStr == 'subadmin') return UserRole.groupAdmin; // sub_admin = Group Admin
+    if (roleStr == 'member' || roleStr == 'user' || roleStr == 'adherent') return UserRole.member;
+    if (roleStr == 'visitor' || roleStr == 'guest' || roleStr == 'invite') return UserRole.visitor;
+    
+    // Fallback to enum check
+    try {
+      return UserRole.values.firstWhere(
+        (e) => e.toString().split('.').last.toLowerCase() == roleStr || e.name.toLowerCase() == roleStr,
+      );
+    } catch (_) {
+      return UserRole.visitor;
+    }
   }
 
   Map<String, dynamic> toFirestore() {

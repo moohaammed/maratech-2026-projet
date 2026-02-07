@@ -19,6 +19,7 @@ import 'features/admin/screens/fcm_test_screen.dart';
 import 'features/guest/screens/guest_home_screen.dart';
 import 'features/notifications/screens/notification_screen.dart';
 import 'features/coach/screens/events/event_detail_screen.dart';
+import 'features/coach/screens/coach_dashboard_screen.dart';
 
 // Theme
 import 'core/theme/app_theme.dart';
@@ -101,6 +102,7 @@ class RunningClubApp extends StatelessWidget {
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
         '/guest-home': (context) => const GuestHomeScreen(),
         '/notifications': (context) => const NotificationScreen(),
+        '/coach-dashboard': (context) => const CoachDashboardScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/event-details') {

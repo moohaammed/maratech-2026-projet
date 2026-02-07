@@ -8,16 +8,18 @@ class AppColors {
 
   // Secondary (Action/Accent)
   static const Color accent = Color(0xFF2979FF);
+  static const Color secondary = accent; // Alias for consistency
   
   // Backgrounds
   static const Color background = Color(0xFFF5F5F5);
   static const Color surface = Colors.white;
   static const Color divider = Color(0xFFE0E0E0);
   
-  // High Contrast (Accessibilty)
-  static const Color highContrastPrimary = Color(0xFFFFD600); // Bright Yellow/Gold - Better standard for High Contrast
-  static const Color highContrastSurface = Color(0xFF121212); // Very dark gray
-  static const Color highContrastBackground = Colors.black;
+  // High Contrast (Accessibility) - Friendly & Welcoming
+  static const Color highContrastPrimary = Color(0xFF00E5CC); // Soft Teal - Friendly & Accessible
+  static const Color highContrastSecondary = Color(0xFF64B5F6); // Soft Blue
+  static const Color highContrastSurface = Color(0xFF1E1E2E); // Soft dark (not pure black)
+  static const Color highContrastBackground = Color(0xFF0D0D14); // Very soft dark
   
   // Text
   static const Color textPrimary = Color(0xFF212121);

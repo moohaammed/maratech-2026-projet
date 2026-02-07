@@ -5,6 +5,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
+import '../accessibility/models/accessibility_profile.dart'; // Added this import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _speechAvailable = false;
   bool _isListeningForName = false;
   bool _isListeningForPin = false;
+  bool _isContinuousListening = false;
   String _listeningField = '';
   
   late AnimationController _animationController;
@@ -62,20 +64,40 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     try {
       _speechAvailable = await _speech.initialize(
         onStatus: (status) {
+          debugPrint("🎤 Status: $status");
           if (status == 'done' || status == 'notListening') {
+            if (_isContinuousListening) {
+              debugPrint("🎤 Status done, restarting continuous listen...");
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted && _isContinuousListening && !_speech.isListening) {
+                   _listenForChoice();
+                }
+              });
+            } else {
+              setState(() {
+                _isListeningForName = false;
+                _isListeningForPin = false;
+                _listeningField = '';
+              });
+            }
+          }
+        },
+        onError: (error) {
+          debugPrint("❌ Speech Error: ${error.errorMsg}");
+          if (_isContinuousListening) {
+             debugPrint("🎤 Error encountered using continuous listen, restarting...");
+             Future.delayed(const Duration(milliseconds: 500), () {
+               if (mounted && _isContinuousListening && !_speech.isListening) {
+                 _listenForChoice();
+               }
+             });
+          } else {
             setState(() {
               _isListeningForName = false;
               _isListeningForPin = false;
               _listeningField = '';
             });
           }
-        },
-        onError: (error) {
-          setState(() {
-            _isListeningForName = false;
-            _isListeningForPin = false;
-            _listeningField = '';
-          });
         },
       );
       final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
@@ -86,6 +108,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       
       await _tts.setLanguage(ttsCode);
       await _tts.setSpeechRate(0.5);
+      await _tts.awaitSpeakCompletion(true); // Critical for sequential flow
     } catch (e) {
       debugPrint('Voice init error: $e');
     }
@@ -98,18 +121,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
       await Future.delayed(const Duration(milliseconds: 800));
       
+      // Welcome message with clear instructions
       final welcomeMsg = _T(
-        "Bienvenue. Souhaitez-vous vous connecter ou continuer en tant qu'invité ?",
-        "Welcome. Would you like to login or continue as a guest?",
-        "مرحبًا. هل ترغب في تسجيل الدخول أو المتابعة كضيف؟"
+        "Bienvenue au Running Club Tunis! Dites se Connecter, ou, Continuer en invité.",
+        "Welcome to Running Club Tunis! Say Login, or, Continue as Guest.",
+        "مرحبًا بك في نادي الجري تونس! قل تسجيل الدخول، أو، متابعة كضيف."
       );
       
       await _tts.speak(welcomeMsg);
       
-      // Wait for speech to finish before starting listener
-      Future.delayed(const Duration(milliseconds: 4500), () {
-        if (mounted) _listenForIntent();
-      });
+      // Small pause before listening starts
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) _listenForChoice();
     }
   }
 
@@ -144,72 +167,156 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   
   Future<void> _speak(String text) async {
     final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    if (profile.visualNeeds == 'blind') {
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
       await _tts.speak(text);
     }
   }
-
-  Future<void> _listenForIntent() async {
-    if (!_speechAvailable) {
-      debugPrint("Speech not available for intent");
-      return;
+  
+  /// Fuzzy string matching using Levenshtein distance
+  int _levenshteinDistance(String s1, String s2) {
+    if (s1.isEmpty) return s2.length;
+    if (s2.isEmpty) return s1.length;
+    
+    List<List<int>> matrix = List.generate(
+      s1.length + 1,
+      (i) => List.generate(s2.length + 1, (j) => 0),
+    );
+    
+    for (int i = 0; i <= s1.length; i++) matrix[i][0] = i;
+    for (int j = 0; j <= s2.length; j++) matrix[0][j] = j;
+    
+    for (int i = 1; i <= s1.length; i++) {
+      for (int j = 1; j <= s2.length; j++) {
+        int cost = s1[i - 1].toLowerCase() == s2[j - 1].toLowerCase() ? 0 : 1;
+        matrix[i][j] = [
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        ].reduce((a, b) => a < b ? a : b);
+      }
     }
-    
-    await _tts.stop();
-    
-    setState(() {
-      _listeningField = 'intent';
-      _isListeningForName = true; // Visual cue
-    });
-
+    return matrix[s1.length][s2.length];
+  }
+  
+  /// Finds the best matching user name from the database
+  Future<String?> _findBestMatchingName(String spokenName) async {
     try {
-      await _speech.listen(
-        onResult: (result) {
-          final words = result.recognizedWords.toLowerCase();
-          debugPrint("🎤 Choice: '$words'");
-          
-          if (result.finalResult) {
-            bool isLogin = words.contains('connecter') || words.contains('login') || 
-                          words.contains('membre') || words.contains('connexion') ||
-                          words.contains('تسجيل') || words.contains('دخول');
-                          
-            bool isGuest = words.contains('invité') || words.contains('guest') || 
-                          words.contains('ضيف') || words.contains('متابعة');
-
-            if (isLogin) {
-              _startVoiceInput('name');
-            } else if (isGuest) {
-              _speak(_T("D'accord, mode invité.", "Okay, guest mode.", "حسنًا، وضع الضيف."));
-              _continueAsGuest();
-            } else {
-              _speak(_T("Je n'ai pas compris. Veuillez dire Se Connecter ou Invité.", 
-                       "I didn't understand. Please say Login or Guest.", 
-                       "لم أفهم. يرجى قول تسجيل الدخول أو ضيف."));
-              Future.delayed(const Duration(seconds: 4), () {
-                 if (mounted) _listenForIntent();
-              });
-            }
-          }
-        },
-        listenFor: const Duration(seconds: 4),
-        pauseFor: const Duration(seconds: 2),
-        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
-        cancelOnError: true,
-      );
+      final snapshot = await FirebaseFirestore.instance.collection('users').get();
+      
+      String? bestMatch;
+      int bestScore = 999;
+      
+      final spokenLower = spokenName.toLowerCase().trim();
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final fullName = (data['fullName'] ?? '').toString();
+        final nameLower = fullName.toLowerCase();
+        
+        // Exact match
+        if (nameLower == spokenLower) {
+          return fullName;
+        }
+        
+        // Check if spoken name is contained in full name or vice versa
+        if (nameLower.contains(spokenLower) || spokenLower.contains(nameLower)) {
+          return fullName;
+        }
+        
+        // Fuzzy match using first name
+        final firstName = nameLower.split(' ').first;
+        final spokenFirst = spokenLower.split(' ').first;
+        
+        int distance = _levenshteinDistance(firstName, spokenFirst);
+        
+        // Allow up to 2 character differences for short names, 3 for longer
+        int threshold = firstName.length <= 5 ? 2 : 3;
+        
+        if (distance < bestScore && distance <= threshold) {
+          bestScore = distance;
+          bestMatch = fullName;
+        }
+      }
+      
+      return bestMatch;
     } catch (e) {
-      debugPrint("Intent Error: $e");
-      _stopVoiceInput();
+      debugPrint("Error finding matching name: $e");
+      return null;
     }
   }
 
-  Future<void> _startVoiceInput(String field) async {
+  Future<void> _listenForChoice() async {
+    if (!_speechAvailable || !mounted) return;
+    
+    // Ensure TTS is stopped
+    await _tts.stop();
+    if (_speech.isListening) {
+      // Don't restart if already listening unless we want to refresh
+    }
+    
+    // Set flag for auto-restart
+    _isContinuousListening = true;
+    
+    debugPrint("🎤 Listening for choice (Login/Guest) - Continuous Mode...");
+    
+    try {
+      await _speech.listen(
+        onResult: (result) async {
+          final words = result.recognizedWords.toLowerCase().trim();
+          
+          bool isLogin = words.contains('connecter') || words.contains('login') || 
+                        words.contains('membre') || words.contains('connexion') ||
+                        words.contains('تسجيل') || words.contains('دخول');
+                        
+          bool isGuest = words.contains('invité') || words.contains('guest') || 
+                        words.contains('visiteur') || words.contains('visite') ||
+                        words.contains('ضيف') || words.contains('متابعة');
+
+          if (isLogin || isGuest) {
+            debugPrint("🎤 Command Detected: '$words'");
+            _stopVoiceInput();
+            
+            if (isLogin) {
+              await _speak(_T(
+                "D'accord. Dites votre nom maintenant.",
+                "Okay. Say your name now.",
+                "حسنًا. قل اسمك الآن."
+              ));
+              if (mounted) _startGuidedVoiceLogin();
+            } else {
+              await _speak(_T("Mode invité.", "Guest mode.", "وضع الضيف."));
+              _continueAsGuest();
+            } 
+          } else if (result.finalResult) {
+            // Heard something but couldn't verify. Loop.
+            debugPrint("🎤 Noise/Unknown: '$words'. Restarting...");
+            // Restart immediately
+            if (mounted) _listenForChoice();
+          }
+        },
+        listenFor: const Duration(seconds: 30), // Listen for a long time
+        pauseFor: const Duration(seconds: 5), // Allow pauses
+        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
+        cancelOnError: false, // Don't stop on temporary errors
+        listenMode: ListenMode.dictation,
+      );
+    } catch (e) {
+      debugPrint("❌ Voice Error (Choice): $e");
+      _stopVoiceInput();
+       // Retry after short delay
+       Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) _listenForChoice();
+       });
+    }
+  }
+
+  /// Sequential guided voice login flow
+  Future<void> _startGuidedVoiceLogin() async {
     if (!_speechAvailable) {
-      _showErrorSnackBar('Reconnaissance vocale non disponible');
-      _speak("La reconnaissance vocale n'est pas disponible sur cet appareil.");
+      debugPrint("Speech not available");
       return;
     }
     
-    // 1. Force stop everything first
     await _tts.stop();
     if (_speech.isListening) {
       await _speech.stop();
@@ -217,95 +324,160 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
     
     setState(() {
-      _listeningField = field;
-      if (field == 'name') {
-        _isListeningForName = true;
-        _isListeningForPin = false;
-        _nameController.clear();
-      } else {
-        _isListeningForPin = true;
-        _isListeningForName = false;
-        _pinController.clear();
-      }
+      _isListeningForName = true;
+      _isListeningForPin = false;
+      _listeningField = 'name';
     });
     
-    final prompt = field == 'name' 
-        ? _T('Quel est votre nom ?', 'What is your name?', 'ما هو اسمك؟') 
-        : _T('Dites les 3 chiffres du code', 'Say the 3 digit code', 'قل أرقام الرمز الثلاثة');
+    debugPrint("🎤 Starting guided voice login - listening for name...");
     
-    await _tts.speak(prompt);
-    
-    // Wait for the prompt to finish + safety margin
-    // We wait 3 seconds to be absolutely sure the prompt is over
-    await Future.delayed(const Duration(milliseconds: 2500));
-    
-    if (!mounted) return;
-
     try {
-      debugPrint("🎤 Starting mic for $field...");
       await _speech.listen(
-        onResult: (result) {
+        onResult: (result) async {
           final words = result.recognizedWords.trim();
           if (words.isEmpty) return;
           
-          debugPrint("🎤 Heard ($field): '$words'");
+          debugPrint("🎤 Heard name: '$words'");
           
+          // Check for guest command
           if (words.toLowerCase().contains('invité') || 
               words.toLowerCase().contains('guest') || 
               words.toLowerCase().contains('ضيف')) {
             _stopVoiceInput();
-            _speak(_T("Connexion en tant qu'invité", "Continuing as guest", "جارٍ تسجيل الدخول كضيف"));
+            await _speak(_T("Mode invité.", "Guest mode.", "وضع الضيف."));
             _continueAsGuest();
             return;
           }
-
-          setState(() {
-            if (field == 'name') {
-              _nameController.text = words;
-              // Set cursor to end
-              _nameController.selection = TextSelection.fromPosition(
-                TextPosition(offset: _nameController.text.length),
-              );
-            } else {
-              final digits = words.replaceAll(RegExp(r'[^0-9]'), '');
-              if (digits.isNotEmpty) {
-                _pinController.text = digits.length > 3 ? digits.substring(0, 3) : digits;
-              }
-            }
-          });
+          
+          setState(() => _nameController.text = words);
           
           if (result.finalResult) {
-            debugPrint("🎤 Final result for $field: '$words'");
             _stopVoiceInput();
             
-            if (field == 'name' && _nameController.text.isNotEmpty) {
-              final name = _nameController.text;
-              _speak(_T('Bonjour $name. Maintenant, dites le code.', 
-                         'Hello $name. Now, say the code.',
-                         'مرحبًا $name. الآن، قل الرمز.'));
+            // Try to find matching name with fuzzy matching
+            final matchedName = await _findBestMatchingName(words);
+            
+            if (matchedName != null && matchedName.toLowerCase() != words.toLowerCase()) {
+              // We found a better match - use it
+              setState(() => _nameController.text = matchedName);
+              debugPrint("✨ Corrected name: '$words' → '$matchedName'");
               
-              // Delay before starting next field to let TTS finish
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) _startVoiceInput('pin');
-              });
-            } else if (field == 'pin' && _pinController.text.length == 3) {
-              _speak(_T('Code reçu. Connexion en cours...', 
-                         'Code received. Logging in...', 
-                         'تم استلام الرمز. جارٍ تسجيل الدخول...'));
-              _login();
+              await _speak(_T(
+                "J'ai compris $matchedName. Maintenant, dites les 3 chiffres de votre code.",
+                "I understood $matchedName. Now, say your 3-digit code.",
+                "فهمت $matchedName. الآن، قل أرقام الرمز الثلاثة."
+              ));
+            } else if (_nameController.text.isNotEmpty) {
+              await _speak(_T(
+                "Bonjour ${_nameController.text}. Maintenant, dites les 3 chiffres de votre code.",
+                "Hello ${_nameController.text}. Now, say your 3-digit code.",
+                "مرحبًا ${_nameController.text}. الآن، قل أرقام الرمز الثلاثة."
+              ));
+            }
+            
+            // Wait for TTS then listen for PIN
+            await Future.delayed(const Duration(milliseconds: 4000));
+            if (mounted) _listenForPin();
+          }
+        },
+        listenFor: const Duration(seconds: 8),
+        pauseFor: const Duration(seconds: 3),
+        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
+        cancelOnError: false,
+        listenMode: ListenMode.dictation,
+      );
+    } catch (e) {
+      debugPrint("❌ Voice Error (name): $e");
+      _stopVoiceInput();
+      await _speak(_T(
+        "Je n'ai pas entendu. Dites votre nom.",
+        "I didn't hear you. Say your name.",
+        "لم أسمعك. قل اسمك."
+      ));
+      await Future.delayed(const Duration(seconds: 3));
+      if (mounted) _startGuidedVoiceLogin();
+    }
+  }
+  
+  Future<void> _listenForPin() async {
+    if (!_speechAvailable || !mounted) return;
+    
+    await _tts.stop();
+    if (_speech.isListening) {
+      await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    
+    setState(() {
+      _isListeningForName = false;
+      _isListeningForPin = true;
+      _listeningField = 'pin';
+    });
+    
+    debugPrint("🎤 Listening for PIN...");
+    
+    try {
+      await _speech.listen(
+        onResult: (result) async {
+          final words = result.recognizedWords.trim();
+          if (words.isEmpty) return;
+          
+          debugPrint("🎤 Heard PIN: '$words'");
+          
+          // Extract digits from speech
+          final digits = words.replaceAll(RegExp(r'[^0-9]'), '');
+          
+          if (digits.isNotEmpty) {
+            final pin = digits.length > 3 ? digits.substring(0, 3) : digits;
+            setState(() => _pinController.text = pin);
+          }
+          
+          if (result.finalResult) {
+            _stopVoiceInput();
+            
+            if (_pinController.text.length == 3) {
+              await _speak(_T(
+                "Code reçu. Connexion en cours.",
+                "Code received. Logging in.",
+                "تم استلام الرمز. جارٍ تسجيل الدخول."
+              ));
+              await Future.delayed(const Duration(milliseconds: 1500));
+              if (mounted) _login();
+            } else {
+              await _speak(_T(
+                "Je n'ai pas compris le code. Répétez les 3 chiffres.",
+                "I didn't understand the code. Repeat the 3 digits.",
+                "لم أفهم الرمز. كرر الأرقام الثلاثة."
+              ));
+              await Future.delayed(const Duration(seconds: 3));
+              if (mounted) _listenForPin();
             }
           }
         },
-        listenFor: const Duration(seconds: 10),
+        listenFor: const Duration(seconds: 8),
         pauseFor: const Duration(seconds: 3),
         localeId: _T('fr-FR', 'en-US', 'ar-SA'),
-        cancelOnError: true,
-        listenMode: ListenMode.confirmation, // Switching to confirmation for shorter inputs
+        cancelOnError: false,
+        listenMode: ListenMode.confirmation,
       );
     } catch (e) {
-      debugPrint("❌ Voice Error ($field): $e");
+      debugPrint("❌ Voice Error (pin): $e");
       _stopVoiceInput();
-      _speak(_T("Je n'ai pas compris. Veuillez réessayer.", "I didn't understand. Please retry.", "لم أفهم. يرجى المحاولة مرة أخرى."));
+      await _speak(_T(
+        "Erreur. Répétez le code.",
+        "Error. Repeat the code.",
+        "خطأ. كرر الرمز."
+      ));
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) _listenForPin();
+    }
+  }
+
+  Future<void> _startVoiceInput(String field) async {
+    if (field == 'name') {
+      _startGuidedVoiceLogin();
+    } else {
+      _listenForPin();
     }
   }
 
@@ -314,9 +486,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     setState(() {
       _isListeningForName = false;
       _isListeningForPin = false;
+      _isContinuousListening = false;
       _listeningField = '';
     });
   }
+
 
   void _continueAsGuest() async {
     final prefs = await SharedPreferences.getInstance();
@@ -439,10 +613,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           await _tts.speak('Connexion réussie! Bienvenue.');
         }
         
-        final role = (userDoc.data()['role'] ?? '').toString();
-        final isAdmin = role.toLowerCase().contains('admin'); 
         
-        Navigator.pushReplacementNamed(context, isAdmin ? '/admin-dashboard' : '/home');
+        final role = (userDoc.data()['role'] ?? '').toString().toLowerCase();
+        
+        if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin' || role == 'coach_admin' || role == 'coachadmin') {
+           // Force standard UI for admins
+           debugPrint("ℹ️ Admin login: Resetting accessibility to Normal Mode.");
+           final defaultProfile = AccessibilityProfile(userId: userDoc.id);
+           await authProvider.updateProfile(defaultProfile);
+        }
+
+        if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin') {
+          Navigator.pushReplacementNamed(context, '/admin-dashboard');
+        } else if (role == 'coach_admin' || role == 'coachadmin') {
+          Navigator.pushReplacementNamed(context, '/coach-dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
 
     } on FirebaseAuthException catch (e) {
@@ -501,12 +688,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final horizontalPadding = isLargeScreen ? 48.0 : 24.0;
     final maxWidth = isLargeScreen ? 450.0 : double.infinity;
     
-    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final bgColor = highContrast ? AppColors.highContrastBackground : AppColors.background;
     final cardColor = highContrast ? AppColors.highContrastSurface : Colors.white;
     final textColor = highContrast ? Colors.white : AppColors.textPrimary;
     final secondaryTextColor = highContrast ? Colors.white70 : AppColors.textSecondary;
     final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
-    final borderColor = highContrast ? Colors.white : AppColors.divider;
+    final borderColor = highContrast ? AppColors.highContrastPrimary.withOpacity(0.5) : AppColors.divider;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -968,739 +1155,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ),
-        SizedBox(height: 24),
-        // DEBUG BUTTON for Test Event
-        TextButton(
-          onPressed: _createTestEvent,
-          child: Text(
-            "🛠️ Créer Test Event (+30 min)",
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // DEBUG BUTTON for Demo Users
-        TextButton(
-          onPressed: _createDemoUsers,
-          child: Text(
-            "👥 Créer Utilisateurs Demo",
-            style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // DEBUG BUTTON for Real Events
-        TextButton(
-          onPressed: _createRealEvents,
-          child: Text(
-            "🏃 Créer 4 Événements Réels",
-            style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-        ),
       ],
     );
-  }
-
-  Future<void> _createRealEvents() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final FirebaseFirestore firestore = FirebaseFirestore.instance;
-      
-      // ESPRIT El Ghazala coordinates: 36°53'59.9"N 10°11'22.7"E
-      // = 36.8999722, 10.1896389
-      
-      // Current date: Feb 7, 2026
-      // Tomorrow: Feb 8, 2026
-      final tomorrow = DateTime(2026, 2, 8);
-      final dayAfter = DateTime(2026, 2, 9);
-      final weekend = DateTime(2026, 2, 14); // Saturday
-      final nextWeek = DateTime(2026, 2, 15); // Sunday
-      
-      final List<Map<String, dynamic>> events = [
-        // EVENT 1: Tomorrow 11PM - 5km Night Run
-        {
-          "accessibility": {
-            "audioGuidanceAvailable": true,
-            "buddySystemAvailable": true,
-            "signLanguageSupport": false,
-            "visualGuidanceAvailable": true,
-            "wheelchairAccessible": false,
-          },
-          "category": "endurance",
-          "createdAt": FieldValue.serverTimestamp(),
-          "createdBy": "system_debug",
-          "creatorName": "Running Club Tunis",
-          "creatorRole": "main_admin",
-          "date": Timestamp.fromDate(DateTime(2026, 2, 8, 23, 0)), // Feb 8, 11PM
-          "description": "Course nocturne de 5km autour du campus ESPRIT. Parcours plat, idéal pour les débutants. Lampes frontales recommandées.",
-          "descriptionAr": "سباق ليلي 5 كم حول حرم إسبري. مسار مستو، مثالي للمبتدئين. يُنصح بالمصابيح الأمامية.",
-          "duration": 45,
-          "endTime": "23:45",
-          "groupColor": "#4CAF50",
-          "groupId": "beginner",
-          "groupName": "Débutants",
-          "intensity": "low",
-          "isAllGroups": true,
-          "isCancelled": false,
-          "isFeatured": true,
-          "isPinned": true,
-          "maxParticipants": 50,
-          "meetingPoint": {
-            "address": "ESPRIT El Ghazala, Route de la Marsa, Ariana",
-            "coordinates": {
-              "latitude": 36.8999722,
-              "longitude": 10.1896389,
-            },
-            "name": "ESPRIT - Entrée Principale",
-            "nameAr": "إسبري - المدخل الرئيسي",
-          },
-          "parkingAvailable": true,
-          "publicTransport": ["Bus 29", "Metro B - Ariana"],
-          "participantCount": 0,
-          "participants": [],
-          "publishedAt": FieldValue.serverTimestamp(),
-          "route": {
-            "difficulty": "easy",
-            "distance": 5,
-            "elevation": 20,
-            "routeDescription": "2 loops around ESPRIT campus and nearby streets",
-            "routeDescriptionAr": "دورتان حول حرم إسبري والشوارع المجاورة",
-            "terrain": "paved",
-          },
-          "startTime": "23:00",
-          "status": "upcoming",
-          "targetPace": "6:30",
-          "title": "Course Nocturne 5K - ESPRIT",
-          "titleAr": "سباق ليلي 5 كم - إسبري",
-          "type": "special",
-          "updatedAt": FieldValue.serverTimestamp(),
-          "waitlist": [],
-        },
-        
-        // EVENT 2: Day after tomorrow - 10km Morning Run
-        {
-          "accessibility": {
-            "audioGuidanceAvailable": true,
-            "buddySystemAvailable": true,
-            "signLanguageSupport": false,
-            "visualGuidanceAvailable": true,
-            "wheelchairAccessible": false,
-          },
-          "category": "tempo",
-          "createdAt": FieldValue.serverTimestamp(),
-          "createdBy": "system_debug",
-          "creatorName": "Running Club Tunis",
-          "creatorRole": "coach_admin",
-          "date": Timestamp.fromDate(DateTime(2026, 2, 9, 7, 0)), // Feb 9, 7AM
-          "description": "Sortie matinale 10km vers le Lac de Tunis. Rythme modéré, retour par la route côtière. Apportez de l'eau.",
-          "descriptionAr": "خروج صباحي 10 كم نحو بحيرة تونس. إيقاع معتدل، العودة عبر الطريق الساحلي. أحضر الماء.",
-          "duration": 70,
-          "endTime": "08:10",
-          "groupColor": "#FFC107",
-          "groupId": "intermediate",
-          "groupName": "Intermédiaires",
-          "intensity": "medium",
-          "isAllGroups": false,
-          "isCancelled": false,
-          "isFeatured": true,
-          "isPinned": false,
-          "maxParticipants": 35,
-          "meetingPoint": {
-            "address": "Technopole El Ghazala, Ariana",
-            "coordinates": {
-              "latitude": 36.8985,
-              "longitude": 10.1880,
-            },
-            "name": "Technopole El Ghazala - Parking",
-            "nameAr": "تكنوبول الغزالة - موقف السيارات",
-          },
-          "parkingAvailable": true,
-          "publicTransport": ["Bus 29", "TGM La Marsa"],
-          "participantCount": 0,
-          "participants": [],
-          "publishedAt": FieldValue.serverTimestamp(),
-          "route": {
-            "difficulty": "moderate",
-            "distance": 10,
-            "elevation": 45,
-            "routeDescription": "El Ghazala → Lac de Tunis → Retour côtier",
-            "routeDescriptionAr": "الغزالة ← بحيرة تونس ← العودة الساحلية",
-            "terrain": "mixed",
-          },
-          "startTime": "07:00",
-          "status": "upcoming",
-          "targetPace": "5:45",
-          "title": "Sortie Matinale 10K - El Ghazala",
-          "titleAr": "خروج صباحي 10 كم - الغزالة",
-          "type": "daily",
-          "updatedAt": FieldValue.serverTimestamp(),
-          "waitlist": [],
-        },
-        
-        // EVENT 3: Weekend Saturday - Trail Run 15km
-        {
-          "accessibility": {
-            "audioGuidanceAvailable": true,
-            "buddySystemAvailable": true,
-            "signLanguageSupport": false,
-            "visualGuidanceAvailable": false,
-            "wheelchairAccessible": false,
-          },
-          "category": "trail",
-          "createdAt": FieldValue.serverTimestamp(),
-          "createdBy": "system_debug",
-          "creatorName": "Running Club Tunis",
-          "creatorRole": "coach_admin",
-          "date": Timestamp.fromDate(DateTime(2026, 2, 14, 8, 30)), // Feb 14, 8:30AM
-          "description": "Trail de la Saint-Valentin! Parcours nature vers Sidi Bou Saïd. Vues spectaculaires, terrain varié. Niveau avancé requis.",
-          "descriptionAr": "تريل عيد الحب! مسار طبيعي نحو سيدي بوسعيد. مناظر خلابة، تضاريس متنوعة. مستوى متقدم مطلوب.",
-          "duration": 120,
-          "endTime": "10:30",
-          "groupColor": "#E91E63",
-          "groupId": "advanced",
-          "groupName": "Avancés",
-          "intensity": "high",
-          "isAllGroups": false,
-          "isCancelled": false,
-          "isFeatured": true,
-          "isPinned": true,
-          "maxParticipants": 25,
-          "meetingPoint": {
-            "address": "ESPRIT El Ghazala, Ariana",
-            "coordinates": {
-              "latitude": 36.8999722,
-              "longitude": 10.1896389,
-            },
-            "name": "ESPRIT - Portail Sud",
-            "nameAr": "إسبري - البوابة الجنوبية",
-          },
-          "parkingAvailable": true,
-          "publicTransport": ["Bus 29", "Metro B"],
-          "participantCount": 0,
-          "participants": [],
-          "publishedAt": FieldValue.serverTimestamp(),
-          "route": {
-            "difficulty": "hard",
-            "distance": 15,
-            "elevation": 180,
-            "routeDescription": "ESPRIT → Raoued → Sidi Bou Saïd → Retour La Marsa",
-            "routeDescriptionAr": "إسبري ← رواد ← سيدي بوسعيد ← العودة المرسى",
-            "terrain": "trail",
-          },
-          "startTime": "08:30",
-          "status": "upcoming",
-          "targetPace": "7:00",
-          "title": "Trail Saint-Valentin 15K 💕",
-          "titleAr": "تريل عيد الحب 15 كم 💕",
-          "type": "special",
-          "updatedAt": FieldValue.serverTimestamp(),
-          "waitlist": [],
-        },
-        
-        // EVENT 4: Sunday - Recovery Jog + Coffee
-        {
-          "accessibility": {
-            "audioGuidanceAvailable": true,
-            "buddySystemAvailable": true,
-            "signLanguageSupport": true,
-            "visualGuidanceAvailable": true,
-            "wheelchairAccessible": true,
-          },
-          "category": "recovery",
-          "createdAt": FieldValue.serverTimestamp(),
-          "createdBy": "system_debug",
-          "creatorName": "Running Club Tunis",
-          "creatorRole": "main_admin",
-          "date": Timestamp.fromDate(DateTime(2026, 2, 15, 9, 0)), // Feb 15, 9AM
-          "description": "Footing léger suivi d'un petit-déjeuner convivial au café du coin. Ouvert à tous niveaux, ambiance détendue!",
-          "descriptionAr": "جري خفيف يعقبه فطور ودي في المقهى المجاور. مفتوح لجميع المستويات، أجواء مريحة!",
-          "duration": 90,
-          "endTime": "10:30",
-          "groupColor": "#9C27B0",
-          "groupId": "all",
-          "groupName": "Tous Niveaux",
-          "intensity": "low",
-          "isAllGroups": true,
-          "isCancelled": false,
-          "isFeatured": false,
-          "isPinned": false,
-          "maxParticipants": 60,
-          "meetingPoint": {
-            "address": "Café La Pause, Technopole El Ghazala",
-            "coordinates": {
-              "latitude": 36.8995,
-              "longitude": 10.1905,
-            },
-            "name": "Café La Pause - Technopole",
-            "nameAr": "مقهى لا بوز - التكنوبول",
-          },
-          "parkingAvailable": true,
-          "publicTransport": ["Bus 29", "Metro B - Ariana"],
-          "participantCount": 0,
-          "participants": [],
-          "publishedAt": FieldValue.serverTimestamp(),
-          "route": {
-            "difficulty": "easy",
-            "distance": 3,
-            "elevation": 10,
-            "routeDescription": "Easy loop around the tech park, then coffee!",
-            "routeDescriptionAr": "جولة سهلة حول الحديقة التقنية، ثم قهوة!",
-            "terrain": "paved",
-          },
-          "startTime": "09:00",
-          "status": "upcoming",
-          "targetPace": "7:30",
-          "title": "Footing + Café ☕ (Dimanche Chill)",
-          "titleAr": "جري خفيف + قهوة ☕ (أحد مريح)",
-          "type": "social",
-          "updatedAt": FieldValue.serverTimestamp(),
-          "waitlist": [],
-        },
-      ];
-      
-      int createdCount = 0;
-      
-      for (final eventData in events) {
-        try {
-          await firestore.collection('events').add(eventData);
-          createdCount++;
-          debugPrint("✅ Created event: ${eventData['title']}");
-        } catch (e) {
-          debugPrint("❌ Failed to create event: $e");
-        }
-      }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("✅ $createdCount événements créés!"),
-                const SizedBox(height: 4),
-                const Text("📍 Lieu: ESPRIT El Ghazala", style: TextStyle(fontSize: 11)),
-                const Text("📅 8 Fév 23h, 9 Fév 7h, 14 Fév 8h30, 15 Fév 9h", style: TextStyle(fontSize: 10)),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("❌ Error creating events: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _createDemoUsers() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final FirebaseAuth auth = FirebaseAuth.instance;
-      final FirebaseFirestore firestore = FirebaseFirestore.instance;
-      final now = Timestamp.now();
-      
-      // ==================== ADMIN USERS ====================
-      final List<Map<String, dynamic>> adminUsers = [
-        {
-          "email": "admin.principal@runningclubtunis.tn",
-          "password": "000123",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 1,
-            "cin": "encrypted:12345678",
-            "createdAt": now,
-            "email": "admin.principal@runningclubtunis.tn",
-            "fullName": "Mohamed Ben Ali",
-            "groupId": "all",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": true,
-              "canDeleteUsers": true,
-              "canEditUsers": true,
-              "canManageGroups": true,
-              "canPostAnnouncements": true,
-              "canViewAnalytics": true,
-            },
-            "phone": "+216 98 765 432",
-            "pin": "123",
-            "pinHash": "hash-123",
-            "role": "main_admin",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "coach.senior@runningclubtunis.tn",
-          "password": "000456",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 2,
-            "cin": "encrypted:87654321",
-            "createdAt": now,
-            "email": "coach.senior@runningclubtunis.tn",
-            "fullName": "Fatma Trabelsi",
-            "groupId": "advanced",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": true,
-              "canDeleteUsers": false,
-              "canEditUsers": true,
-              "canManageGroups": true,
-              "canPostAnnouncements": true,
-              "canViewAnalytics": true,
-            },
-            "phone": "+216 55 123 456",
-            "pin": "456",
-            "pinHash": "hash-456",
-            "role": "coach_admin",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "assistant.admin@runningclubtunis.tn",
-          "password": "000789",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 3,
-            "cin": "encrypted:11223344",
-            "createdAt": now,
-            "email": "assistant.admin@runningclubtunis.tn",
-            "fullName": "Ahmed Khediri",
-            "groupId": "intermediate",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": true,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": true,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 22 987 654",
-            "pin": "789",
-            "pinHash": "hash-789",
-            "role": "sub_admin",
-            "updatedAt": now,
-          }
-        },
-      ];
-      
-      // ==================== ADHERANT USERS ====================
-      final List<Map<String, dynamic>> memberUsers = [
-        {
-          "email": "samir.jaziri@gmail.com",
-          "password": "000111",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 0,
-            "cin": "encrypted:55667788",
-            "createdAt": now,
-            "email": "samir.jaziri@gmail.com",
-            "fullName": "Samir Jaziri",
-            "groupId": "beginner",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": false,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": false,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 20 111 222",
-            "pin": "111",
-            "pinHash": "hash-111",
-            "role": "user",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "nadia.bouazizi@outlook.com",
-          "password": "000222",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 0,
-            "cin": "encrypted:99887766",
-            "createdAt": now,
-            "email": "nadia.bouazizi@outlook.com",
-            "fullName": "Nadia Bouazizi",
-            "groupId": "intermediate",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": false,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": false,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 25 333 444",
-            "pin": "222",
-            "pinHash": "hash-222",
-            "role": "user",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "karim.belhaj@gmail.com",
-          "password": "000333",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 0,
-            "cin": "encrypted:44556677",
-            "createdAt": now,
-            "email": "karim.belhaj@gmail.com",
-            "fullName": "Karim Belhaj",
-            "groupId": "advanced",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": false,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": false,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 29 555 666",
-            "pin": "333",
-            "pinHash": "hash-333",
-            "role": "user",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "leila.mansour@yahoo.fr",
-          "password": "000444",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 0,
-            "cin": "encrypted:22334455",
-            "createdAt": now,
-            "email": "leila.mansour@yahoo.fr",
-            "fullName": "Leila Mansour",
-            "groupId": "beginner",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": false,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": false,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 23 777 888",
-            "pin": "444",
-            "pinHash": "hash-444",
-            "role": "user",
-            "updatedAt": now,
-          }
-        },
-        {
-          "email": "youssef.hamdi@gmail.com",
-          "password": "000555",
-          "data": {
-            "accountCreatedBy": "system_debug",
-            "accountStatus": "active",
-            "adminLevel": 0,
-            "cin": "encrypted:66778899",
-            "createdAt": now,
-            "email": "youssef.hamdi@gmail.com",
-            "fullName": "Youssef Hamdi",
-            "groupId": "intermediate",
-            "isActive": true,
-            "permissions": {
-              "canCreateEvents": false,
-              "canDeleteUsers": false,
-              "canEditUsers": false,
-              "canManageGroups": false,
-              "canPostAnnouncements": false,
-              "canViewAnalytics": false,
-            },
-            "phone": "+216 27 999 000",
-            "pin": "555",
-            "pinHash": "hash-555",
-            "role": "user",
-            "updatedAt": now,
-          }
-        },
-      ];
-      
-      int createdCount = 0;
-      int failedCount = 0;
-      
-      // Create all users
-      final allUsers = [...adminUsers, ...memberUsers];
-      
-      for (final userConfig in allUsers) {
-        try {
-          // Create Firebase Auth user
-          final UserCredential cred = await auth.createUserWithEmailAndPassword(
-            email: userConfig["email"],
-            password: userConfig["password"],
-          );
-          
-          // Create Firestore document with the Auth UID
-          final userData = Map<String, dynamic>.from(userConfig["data"]);
-          userData["userId"] = cred.user!.uid;
-          
-          await firestore.collection('users').doc(cred.user!.uid).set(userData);
-          
-          createdCount++;
-          debugPrint("✅ Created user: ${userData['fullName']} (${userData['role']})");
-        } catch (e) {
-          if (e is FirebaseAuthException && e.code == 'email-already-in-use') {
-            debugPrint("⚠️ User already exists: ${userConfig['email']}");
-          } else {
-            debugPrint("❌ Failed to create ${userConfig['email']}: $e");
-            failedCount++;
-          }
-        }
-      }
-      
-      // Sign out after creating users
-      await auth.signOut();
-      
-      if (mounted) {
-        final message = createdCount > 0 
-            ? "✅ $createdCount utilisateurs créés avec succès!"
-            : "⚠️ Aucun nouvel utilisateur créé (peut-être déjà existants)";
-            
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(message),
-                if (failedCount > 0) Text("$failedCount échecs"),
-                const SizedBox(height: 4),
-                const Text("📌 PIN Admins: 123, 456, 789", style: TextStyle(fontSize: 11)),
-                const Text("📌 PIN Adhérents: 111, 222, 333, 444, 555", style: TextStyle(fontSize: 11)),
-              ],
-            ),
-            backgroundColor: createdCount > 0 ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("❌ Error creating demo users: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _createTestEvent() async {
-    setState(() => _isLoading = true);
-    try {
-      final now = DateTime.now();
-      final eventDate = now.add(const Duration(minutes: 30));
-      final endDate = eventDate.add(const Duration(minutes: 90)); // 90 min duration
-
-      final startHour = eventDate.hour.toString().padLeft(2, '0');
-      final startMin = eventDate.minute.toString().padLeft(2, '0');
-      final endHour = endDate.hour.toString().padLeft(2, '0');
-      final endMin = endDate.minute.toString().padLeft(2, '0');
-
-      final eventData = {
-        "accessibility": {
-          "audioGuidanceAvailable": true,
-          "buddySystemAvailable": true,
-          "signLanguageSupport": false,
-          "visualGuidanceAvailable": true,
-          "wheelchairAccessible": false,
-        },
-        "category": "tempo",
-        "createdAt": FieldValue.serverTimestamp(),
-        "createdBy": "HFQxwxxNGEfJhmqvOcuw69m9KMT2",
-        "creatorName": "test admin",
-        "creatorRole": "main_admin",
-        "date": Timestamp.fromDate(eventDate),
-        "description": "15 min warmup, 10K tempo at race pace, 10 min cooldown",
-        "descriptionAr": "15 دقيقة إحماء، 10 كم إيقاع سريع، 10 دقائق استرخاء",
-        "duration": 90,
-        "endTime": "$endHour:$endMin",
-        "groupColor": "#FFC107",
-        "groupId": "intermediate",
-        "groupName": "Intermédiaires",
-        "intensity": "high",
-        "isAllGroups": false,
-        "isCancelled": false,
-        "isFeatured": true,
-        "isPinned": false,
-        "maxParticipants": 40,
-        "meetingPoint": {
-          "address": "Avenue de la Ligue Arabe, Tunis",
-          "coordinates": {
-            "latitude": 36.835,
-            "longitude": 10.21,
-          },
-          "name": "Lac de Tunis - Entrée Sud",
-          "nameAr": "بحيرة تونس - المدخل الجنوبي",
-        },
-        "parkingAvailable": true,
-        "publicTransport": [
-          "Bus 20",
-          "Metro Ligne 5"
-        ],
-        "participantCount": 0,
-        "participants": [
-          "JVURI4eq75etttrHAEDEBD5gTGb2"
-        ],
-        "publishedAt": FieldValue.serverTimestamp(),
-        "route": {
-          "difficulty": "moderate",
-          "distance": 12,
-          "elevation": 50,
-          "routeDescription": "Flat course around the lake, 3 loops of 4km each",
-          "routeDescriptionAr": "مسار مستو حول البحيرة، 3 دورات من 4 كم لكل منها",
-          "terrain": "paved",
-        },
-        "startTime": "$startHour:$startMin",
-        "status": "upcoming",
-        "targetPace": "5:45",
-        "title": "Morning Tempo Run",
-        "titleAr": "جري الإيقاع الصباحي",
-        "type": "daily",
-        "updatedAt": FieldValue.serverTimestamp(),
-        "waitlist": [],
-      };
-
-      await FirebaseFirestore.instance.collection('events').add(eventData);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Événement de test créé pour dans 30 min !"), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      debugPrint("Error creating test event: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 }

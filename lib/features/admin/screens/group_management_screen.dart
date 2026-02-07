@@ -90,15 +90,29 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
                     ),
                   )),
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showAddMemberDialog(context, group),
-                      icon: const Icon(Icons.person_add),
-                      label: const Text('Ajouter un membre'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        foregroundColor: AppColors.primary,
-                      ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddMemberDialog(context, group),
+                          icon: const Icon(Icons.person_add, size: 18),
+                          label: const Text('Membre'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            foregroundColor: AppColors.primary,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAssignAdminDialog(context, group),
+                          icon: const Icon(Icons.admin_panel_settings, size: 18),
+                          label: const Text('Admin'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange.withOpacity(0.1),
+                            foregroundColor: Colors.orange,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   TextButton.icon(
@@ -138,6 +152,48 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AddMemberDialog(group: group, groupService: _groupService, userService: _userService),
+    );
+  }
+  
+  void _showAssignAdminDialog(BuildContext context, GroupModel group) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Assigner un Responsable'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: StreamBuilder<List<UserModel>>(
+            stream: _userService.getUsersByRole(UserRole.groupAdmin),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
+              final admins = snapshot.data ?? [];
+              if (admins.isEmpty) return const Text("Aucun 'Admin Groupe' trouvé.");
+              
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: admins.length,
+                itemBuilder: (context, index) {
+                  final admin = admins[index];
+                  final isCurrent = group.adminId == admin.id;
+                  return ListTile(
+                    leading: CircleAvatar(child: Text(admin.fullName[0])),
+                    title: Text(admin.fullName),
+                    subtitle: isCurrent ? const Text("Actuel", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)) : null,
+                    trailing: isCurrent ? const Icon(Icons.check_circle, color: Colors.green) : null,
+                    onTap: () async {
+                      await _groupService.updateGroupAdmin(group.id, admin.id);
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+        ],
+      ),
     );
   }
 

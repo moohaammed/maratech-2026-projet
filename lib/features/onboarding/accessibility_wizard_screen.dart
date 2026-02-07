@@ -535,7 +535,7 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     }
 
     final useHighContrast = _highContrast || _visualNeeds == 'blind';
-    final bgColor = useHighContrast ? Colors.black : AppColors.background;
+    final bgColor = useHighContrast ? AppColors.highContrastBackground : AppColors.background;
     final textColor = useHighContrast ? Colors.white : Colors.black;
     final ts = _textScale;
 
@@ -648,8 +648,8 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     
     // Determine visual state
     bool showActiveConfig = isListening || isSpeaking;
-    Color activeColor = useHighContrast ? Colors.black : AppColors.primary;
-    if (isSpeaking) activeColor = Colors.orange; // Different color for speaking
+    Color activeColor = useHighContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    if (isSpeaking) activeColor = useHighContrast ? AppColors.highContrastSecondary : Colors.orange;
 
     return Column(
       children: [
@@ -659,13 +659,14 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: useHighContrast ? Colors.white : Colors.black87,
+              color: useHighContrast ? AppColors.highContrastSurface : Colors.black87,
               borderRadius: BorderRadius.circular(30),
+              border: useHighContrast ? Border.all(color: AppColors.highContrastPrimary, width: 2) : null,
             ),
             child: Text(
               '"$_recognizedText"',
               style: TextStyle(
-                color: useHighContrast ? Colors.black : Colors.white,
+                color: useHighContrast ? AppColors.highContrastPrimary : Colors.white,
                 fontSize: 18 * ts,
                 fontWeight: FontWeight.w500,
               ),
@@ -679,11 +680,11 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: showActiveConfig 
-                ? (useHighContrast ? Colors.white : activeColor.withOpacity(0.1))
+                ? (useHighContrast ? AppColors.highContrastSurface : activeColor.withOpacity(0.1))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
             border: showActiveConfig 
-                ? Border.all(color: activeColor.withOpacity(0.5)) 
+                ? Border.all(color: activeColor.withOpacity(0.7), width: useHighContrast ? 2 : 1) 
                 : null,
           ),
           child: Row(
@@ -734,14 +735,14 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
           }
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: useHighContrast ? Colors.white : AppColors.primary,
+          backgroundColor: useHighContrast ? AppColors.highContrastPrimary : AppColors.primary,
           foregroundColor: useHighContrast ? Colors.black : Colors.white,
           elevation: 8,
-          shadowColor: AppColors.primary.withOpacity(0.5),
+          shadowColor: useHighContrast ? AppColors.highContrastPrimary.withOpacity(0.5) : AppColors.primary.withOpacity(0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: useHighContrast ? Colors.white : Colors.transparent,
+              color: useHighContrast ? AppColors.highContrastPrimary : Colors.transparent,
               width: 3,
             ),
           ),

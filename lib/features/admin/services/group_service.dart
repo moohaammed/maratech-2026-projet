@@ -95,4 +95,41 @@ class GroupService {
 
     await batch.commit();
   }
+  // Update Group Admin
+  Future<void> updateGroupAdmin(String groupId, String newAdminId) async {
+    await _groupsCollection.doc(groupId).update({'adminId': newAdminId});
+  }
+
+  // Check if group exists
+  Future<bool> checkGroupExists(String groupId) async {
+    final doc = await _groupsCollection.doc(groupId).get();
+    return doc.exists;
+  }
+
+  // Stream a single group by ID
+  Stream<GroupModel?> getGroupStream(String groupId) {
+    return _groupsCollection.doc(groupId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return GroupModel.fromFirestore(doc);
+    });
+  }
+
+  // Get all groups (Future)
+  Future<List<GroupModel>> getAllGroups() async {
+    final snapshot = await _groupsCollection.get();
+    return snapshot.docs.map((doc) => GroupModel.fromFirestore(doc)).toList();
+  }
+
+  // Assign group to admin (claim)
+  Future<void> assignGroupToAdmin(String groupId, String adminId) async {
+    final batch = _firestore.batch();
+    
+    // 1. Update group adminId
+    batch.update(_groupsCollection.doc(groupId), {'adminId': adminId});
+    
+    // 2. Update user assignedGroupId
+    batch.update(_firestore.collection('users').doc(adminId), {'assignedGroupId': groupId});
+    
+    await batch.commit();
+  }
 }

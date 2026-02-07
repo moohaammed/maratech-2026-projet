@@ -25,16 +25,29 @@ class GroupModel {
 
   factory GroupModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    // Handle Level (String or Int)
+    GroupLevel parsedLevel = GroupLevel.beginner;
+    final rawLevel = data['level'];
+    if (rawLevel is String) {
+      parsedLevel = GroupLevel.values.firstWhere(
+        (e) => e.toString() == rawLevel,
+        orElse: () => GroupLevel.beginner,
+      );
+    } else if (rawLevel is int) {
+      // Map 1->Beginner, 2->Intermediate, 3->Advanced (Assumption based on user data)
+      if (rawLevel == 1) parsedLevel = GroupLevel.beginner;
+      else if (rawLevel == 2) parsedLevel = GroupLevel.intermediate;
+      else if (rawLevel >= 3) parsedLevel = GroupLevel.advanced;
+    }
+
     return GroupModel(
       id: doc.id,
       name: data['name'] ?? '',
-      level: GroupLevel.values.firstWhere(
-        (e) => e.toString() == data['level'],
-        orElse: () => GroupLevel.beginner,
-      ),
+      level: parsedLevel,
       adminId: data['adminId'],
-      memberIds: List<String>.from(data['memberIds'] ?? []),
-      createdAt: data['createdAt'] != null 
+      memberIds: List<String>.from(data['memberIds'] ?? []), 
+      createdAt: data['createdAt'] is Timestamp 
           ? (data['createdAt'] as Timestamp).toDate() 
           : DateTime.now(),
     );
