@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Accessibility Permissions -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />  <!-- Speech-to-text -->
+    <uses-permission android:name="android.permission.VIBRATE" />       <!-- Haptic feedback -->
+    <uses-permission android:name="android.permission.INTERNET" />      <!-- Firebase & TTS -->
+    
     <application
         android:label="impact"
         android:name="${applicationName}"
