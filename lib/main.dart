@@ -101,7 +101,6 @@ class RunningClubApp extends StatelessWidget {
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
         '/guest-home': (context) => const GuestHomeScreen(),
         '/notifications': (context) => const NotificationScreen(),
-        '/fcm-test': (context) => const FcmTestScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/event-details') {

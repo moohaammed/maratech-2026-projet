@@ -92,10 +92,63 @@ class NotificationService {
   }
 
   void startListeningToEvents() {
+    // Garder trace des événements déjà notifiés pour éviter les doublons
+    final Set<String> notifiedEvents = {};
+    
     _eventService.getEventsStream().listen((events) {
-      debugPrint("Auto-scheduling reminders for ${events.length} events");
+      debugPrint("📅 Détection de ${events.length} événements");
+      
+      for (var event in events) {
+        // Si c'est un nouvel événement (pas encore notifié)
+        if (!notifiedEvents.contains(event.id)) {
+          notifiedEvents.add(event.id);
+          
+          // Envoyer une notification immédiate pour les nouveaux événements
+          _sendImmediateEventNotification(event);
+        }
+      }
+      
+      // Programmer les rappels 30 min avant pour tous les événements
       scheduleMultipleReminders(events);
     });
+  }
+  
+  Future<void> _sendImmediateEventNotification(EventModel event) async {
+    debugPrint("🔔 Envoi notification immédiate pour: ${event.title}");
+    
+    final icon = event.type == EventType.daily ? '🏃' : '⭐';
+    final payload = jsonEncode({
+      'eventId': event.id,
+      'type': 'new_event',
+    });
+    
+    try {
+      await _localNotifications.show(
+        id: event.id.hashCode + 1000, // +1000 pour différencier des rappels
+        title: '$icon Nouvel événement: ${event.title}',
+        body: '${_formatDate(event.date)} à ${event.time} - ${event.location}',
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'new_events',
+            'Nouveaux événements',
+            channelDescription: 'Notifications pour les nouveaux événements créés',
+            importance: Importance.high,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('notification'),
+          ),
+        ),
+        payload: payload,
+      );
+      debugPrint("✅ Notification immédiate envoyée pour: ${event.title}");
+    } catch (e) {
+      debugPrint("❌ Erreur envoi notification immédiate: $e");
+    }
+  }
+  
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 
+                     'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
