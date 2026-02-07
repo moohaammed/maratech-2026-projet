@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Home Screen - Main dashboard for Adhérant (Regular Member)
 class HomeScreen extends StatefulWidget {
@@ -26,8 +27,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _initTTS();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final profile = Provider.of<AccessibilityProvider>(context).profile;
+    _updateTTSLanguage(profile.languageCode);
+  }
+
+  Future<void> _updateTTSLanguage(String langCode) async {
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    await _tts.setLanguage(ttsCode);
+  }
+
   Future<void> _initTTS() async {
-    await _tts.setLanguage("fr-FR");
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('languageCode') ?? 'fr';
+    
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    
+    await _tts.setLanguage(ttsCode);
     await _tts.setSpeechRate(0.5);
   }
 
@@ -113,11 +135,14 @@ class _HomeTabState extends State<_HomeTab> {
   bool _isLoading = true;
   int _notificationCount = 2; // Placeholder
 
+  Stream<QuerySnapshot>? _eventsStream;
+
   @override
   void initState() {
     super.initState();
     _initTTS();
     _loadUserData();
+    _initEventsStream();
     
     // Ensure we have the latest profile for this user
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,18 +150,80 @@ class _HomeTabState extends State<_HomeTab> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final profile = Provider.of<AccessibilityProvider>(context).profile;
+    _updateTTSLanguage(profile.languageCode);
+  }
+
+  Future<void> _updateTTSLanguage(String langCode) async {
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    await _tts.setLanguage(ttsCode);
+  }
+
+  void _initEventsStream() {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    _eventsStream = FirebaseFirestore.instance
+        .collection('events')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+        .orderBy('date')
+        .limit(10)
+        .snapshots();
+  }
+
   // TTS for Home Content
   final FlutterTts _tts = FlutterTts();
   Future<void> _initTTS() async {
-    await _tts.setLanguage("fr-FR");
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('languageCode') ?? 'fr';
+    
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    
+    await _tts.setLanguage(ttsCode);
     await _tts.setSpeechRate(0.5);
   }
 
   Future<void> _speak(String text) async {
     if (!mounted) return;
     final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    if (profile.visualNeeds == 'blind') {
+    // Enable for both blind and low vision if they touch cards
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
+      await _tts.stop(); // Interrupt
       await _tts.speak(text);
+    }
+  }
+
+  Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    final uid = user.uid;
+    final isRegistered = participants.contains(uid);
+    
+    try {
+      await FirebaseFirestore.instance.collection('events').doc(eventId).update({
+        'participants': isRegistered 
+            ? FieldValue.arrayRemove([uid]) 
+            : FieldValue.arrayUnion([uid])
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isRegistered ? 'Désinscription confirmée' : 'Inscription confirmée!'),
+          backgroundColor: isRegistered ? Colors.grey : AppColors.success,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      
+      if (!isRegistered) _speak("Vous êtes inscrit à l'événement.");
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
     }
   }
 
@@ -245,26 +332,29 @@ class _HomeTabState extends State<_HomeTab> {
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
         foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: highContrast ? 0 : 2,
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/logo.jpg',
-              width: 32 * textScale.clamp(1.0, 1.2),
-              height: 32 * textScale.clamp(1.0, 1.2),
-              errorBuilder: (_, __, ___) => Icon(
-                Icons.directions_run,
-                size: 28 * textScale.clamp(1.0, 1.2),
+        title: InkWell(
+          onTap: () => _speak("Running Club Tunis. Appuyez pour écouter."),
+          child: Row(
+            children: [
+              Image.asset(
+                'assets/logo.jpg',
+                width: 32 * textScale.clamp(1.0, 1.2),
+                height: 32 * textScale.clamp(1.0, 1.2),
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.directions_run,
+                  size: 28 * textScale.clamp(1.0, 1.2),
+                ),
               ),
-            ),
-            SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
-            Text(
-              'Running Club Tunis',
-              style: TextStyle(
-                fontSize: 18 * textScale,
-                fontWeight: FontWeight.bold,
+              SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+              Text(
+                'Running Club Tunis',
+                style: TextStyle(
+                  fontSize: 18 * textScale,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           Stack(
@@ -342,82 +432,152 @@ class _HomeTabState extends State<_HomeTab> {
                     
                     SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
-                    // Today's Run Section
-                    _buildSectionHeader(
-                      icon: '🏃',
-                      title: "Course d'aujourd'hui",
-                      textScale: textScale,
-                      textColor: textColor,
-                      boldText: boldText,
-                    ),
-                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                    _buildTodayEventCard(
-                      textScale: textScale,
-                      highContrast: highContrast,
-                      boldText: boldText,
-                      textColor: textColor,
-                      secondaryTextColor: secondaryTextColor,
-                      primaryColor: primaryColor,
-                      groupName: _getGroupName(),
-                      groupColor: _getGroupColor(),
-                    ),
-                    
-                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: _eventsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text('Erreur: ${snapshot.error}');
+                        }
+                        
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        
+                        final events = snapshot.data?.docs ?? [];
+                        final now = DateTime.now();
+                        final todayStart = DateTime(now.year, now.month, now.day);
+                        final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+                        
+                        // Filter Today vs Upcoming
+                        final todayEvents = events.where((doc) {
+                          final date = (doc['date'] as Timestamp).toDate();
+                          return date.isAfter(todayStart.subtract(const Duration(seconds: 1))) && 
+                                 date.isBefore(todayEnd);
+                        }).toList();
+                        
+                        final upcomingEvents = events.where((doc) {
+                          final date = (doc['date'] as Timestamp).toDate();
+                          return date.isAfter(todayEnd);
+                        }).take(3).toList(); // Take next 3
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Today's Run Section
+                            _buildSectionHeader(
+                              icon: '🏃',
+                              title: "Course d'aujourd'hui",
+                              textScale: textScale,
+                              textColor: textColor,
+                              boldText: boldText,
+                            ),
+                            SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                            
+                            if (todayEvents.isNotEmpty) ...todayEvents.map((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final date = (data['date'] as Timestamp).toDate();
+                                final timeStr = "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
+                                final participants = List<String>.from(data['participants'] ?? []);
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: _buildTodayEventCard(
+                                    eventId: doc.id,
+                                    title: data['title'] ?? 'Entraînement',
+                                    time: timeStr,
+                                    location: data['location'] ?? 'Stade',
+                                    distance: data['distance'] ?? 'Unknown',
+                                    participants: participants,
+                                    groupName: data['group'] ?? 'Tous',
+                                    description: data['description'] ?? '',
+                                    textScale: textScale,
+                                    highContrast: highContrast,
+                                    boldText: boldText,
+                                    textColor: textColor,
+                                    secondaryTextColor: secondaryTextColor,
+                                    primaryColor: primaryColor,
+                                    groupColor: _getGroupColor(), // dynamic based on user group or event group? User group for match logic? Let's use User's group logic for coloring
+                                    onRegister: () => _toggleRegistration(doc.id, participants),
+                                  ),
+                                );
+                            }).toList()
+                            else
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: highContrast ? Colors.white10 : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "Pas d'événement prévu aujourd'hui. Repos! 😴",
+                                  style: TextStyle(
+                                    fontSize: 16 * textScale,
+                                    color: secondaryTextColor,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            
+                            SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
-                    // Quick Actions
-                    _buildSectionHeader(
-                      icon: '⚡',
-                      title: 'Actions rapides',
-                      textScale: textScale,
-                      textColor: textColor,
-                      boldText: boldText,
-                    ),
-                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                    _buildQuickActions(
-                      textScale: textScale,
-                      highContrast: highContrast,
-                      boldText: boldText,
-                    ),
-                    
-                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                            // Quick Actions (Keep static for now as requested or make dynamic later)
+                             _buildSectionHeader(
+                              icon: '⚡',
+                              title: 'Actions rapides',
+                              textScale: textScale,
+                              textColor: textColor,
+                              boldText: boldText,
+                            ),
+                            SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                            _buildQuickActions(
+                              textScale: textScale,
+                              highContrast: highContrast,
+                              boldText: boldText,
+                            ),
+                            
+                            SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
-                    // Upcoming Events
-                    _buildSectionHeader(
-                      icon: '📅',
-                      title: 'Événements à venir',
-                      textScale: textScale,
-                      textColor: textColor,
-                      boldText: boldText,
-                    ),
-                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                    _buildUpcomingEventCard(
-                      title: 'Sortie Longue',
-                      date: 'Sam 08/02',
-                      time: '07:00',
-                      location: 'Lac 2',
-                      distance: '20 km',
-                      group: 'Tous les groupes',
-                      groupColor: AppColors.info,
-                      textScale: textScale,
-                      highContrast: highContrast,
-                      boldText: boldText,
-                      textColor: textColor,
-                      secondaryTextColor: secondaryTextColor,
-                    ),
-                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                    _buildUpcomingEventCard(
-                      title: 'Course Easy',
-                      date: 'Dim 09/02',
-                      time: '08:00',
-                      location: 'Parc Belvédère',
-                      distance: '6 km',
-                      group: 'Débutants',
-                      groupColor: AppColors.beginner,
-                      textScale: textScale,
-                      highContrast: highContrast,
-                      boldText: boldText,
-                      textColor: textColor,
-                      secondaryTextColor: secondaryTextColor,
+                            // Upcoming Events
+                            _buildSectionHeader(
+                              icon: '📅',
+                              title: 'Événements à venir',
+                              textScale: textScale,
+                              textColor: textColor,
+                              boldText: boldText,
+                            ),
+                            SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
+                            
+                            if (upcomingEvents.isNotEmpty) ...upcomingEvents.map((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                final date = (data['date'] as Timestamp).toDate();
+                                final dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                                final dayStr = "${dayNames[date.weekday - 1]} ${date.day}/${date.month}";
+                                final timeStr = "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12.0),
+                                  child: _buildUpcomingEventCard(
+                                    title: data['title'] ?? 'Entraînement',
+                                    date: dayStr,
+                                    time: timeStr,
+                                    location: data['location'] ?? 'Stade',
+                                    distance: data['distance'] ?? '',
+                                    group: data['group'] ?? 'Tous',
+                                    groupColor: AppColors.primary,
+                                    textScale: textScale,
+                                    highContrast: highContrast,
+                                    boldText: boldText,
+                                    textColor: textColor,
+                                    secondaryTextColor: secondaryTextColor,
+                                  ),
+                                );
+                            }).toList()
+                             else
+                              Text("Rien de prévu cette semaine.", style: TextStyle(color: secondaryTextColor, fontSize: 14 * textScale)),
+
+                          ],
+                        );
+                      },
                     ),
                     
                     SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
@@ -460,110 +620,125 @@ class _HomeTabState extends State<_HomeTab> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 50 * textScale.clamp(1.0, 1.2),
-                height: 50 * textScale.clamp(1.0, 1.2),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: highContrast ? primaryColor : Colors.white,
-                    width: 2,
-                  ),
-                ),
-                child: Icon(
-                  Icons.person,
-                  color: primaryColor,
-                  size: 28 * textScale.clamp(1.0, 1.2),
-                ),
-              ),
-              SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
-              Expanded(
-                child: Column(
+      child: InkWell(
+        onTap: () => _speak("Bienvenue, $firstName. Vous êtes dans le groupe $groupName. Membre depuis $memberSince."),
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            // Internal padding was removed from Container, moved to here? 
+            // Actually, Container has padding. InkWell should be OUTSIDE or INSIDE?
+            // If Container has decoration, InkWell must be inside Material inside Container.
+            // Let's wrap content in InkWell properly.
+             Padding(
+               padding: EdgeInsets.all(20 * textScale.clamp(1.0, 1.2)),
+               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Bienvenue! 👋',
-                      style: TextStyle(
-                        color: highContrast ? Colors.white70 : Colors.white70,
-                        fontSize: 14 * textScale,
-                        fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 50 * textScale.clamp(1.0, 1.2),
+                          height: 50 * textScale.clamp(1.0, 1.2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: highContrast ? primaryColor : Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            color: primaryColor,
+                            size: 28 * textScale.clamp(1.0, 1.2),
+                          ),
+                        ),
+                        SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bienvenue! 👋',
+                                style: TextStyle(
+                                  color: highContrast ? Colors.white70 : Colors.white70,
+                                  fontSize: 14 * textScale,
+                                  fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              Text(
+                                firstName,
+                                style: TextStyle(
+                                  color: highContrast ? primaryColor : Colors.white,
+                                  fontSize: 22 * textScale,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      firstName,
-                      style: TextStyle(
-                        color: highContrast ? primaryColor : Colors.white,
-                        fontSize: 22 * textScale,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+                    Wrap(
+                      spacing: 12 * textScale.clamp(1.0, 1.2),
+                      runSpacing: 8 * textScale.clamp(1.0, 1.2),
+                      children: [
+                        // Group Badge
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12 * textScale.clamp(1.0, 1.2),
+                            vertical: 6 * textScale.clamp(1.0, 1.2),
+                          ),
+                          decoration: BoxDecoration(
+                            color: highContrast 
+                                ? groupColor.withOpacity(0.3) 
+                                : Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: highContrast ? groupColor : Colors.white54,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8 * textScale.clamp(1.0, 1.2),
+                                height: 8 * textScale.clamp(1.0, 1.2),
+                                decoration: BoxDecoration(
+                                  color: groupColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
+                              Text(
+                                groupName,
+                                style: TextStyle(
+                                  color: highContrast ? Colors.white : Colors.white,
+                                  fontSize: 13 * textScale,
+                                  fontWeight: boldText ? FontWeight.bold : FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Member Since
+                        Text(
+                          'Membre depuis $memberSince',
+                          style: TextStyle(
+                            color: highContrast ? Colors.white70 : Colors.white70,
+                            fontSize: 12 * textScale,
+                            fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
-          Wrap(
-            spacing: 12 * textScale.clamp(1.0, 1.2),
-            runSpacing: 8 * textScale.clamp(1.0, 1.2),
-            children: [
-              // Group Badge
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 12 * textScale.clamp(1.0, 1.2),
-                  vertical: 6 * textScale.clamp(1.0, 1.2),
-                ),
-                decoration: BoxDecoration(
-                  color: highContrast 
-                      ? groupColor.withOpacity(0.3) 
-                      : Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: highContrast ? groupColor : Colors.white54,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8 * textScale.clamp(1.0, 1.2),
-                      height: 8 * textScale.clamp(1.0, 1.2),
-                      decoration: BoxDecoration(
-                        color: groupColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    SizedBox(width: 6 * textScale.clamp(1.0, 1.2)),
-                    Text(
-                      groupName,
-                      style: TextStyle(
-                        color: highContrast ? Colors.white : Colors.white,
-                        fontSize: 13 * textScale,
-                        fontWeight: boldText ? FontWeight.bold : FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Member Since
-              Text(
-                'Membre depuis $memberSince',
-                style: TextStyle(
-                  color: highContrast ? Colors.white70 : Colors.white70,
-                  fontSize: 12 * textScale,
-                  fontWeight: boldText ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ],
+               ),
+             ),
+          ],
+        ),
       ),
     );
   }
@@ -575,38 +750,55 @@ class _HomeTabState extends State<_HomeTab> {
     required Color textColor,
     required bool boldText,
   }) {
-    return Semantics(
-      header: true,
-      child: Row(
-        children: [
-          Text(
-            icon,
-            style: TextStyle(fontSize: 20 * textScale),
-          ),
-          SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 20 * textScale,
-              fontWeight: FontWeight.bold,
-              color: textColor,
+    return InkWell(
+      onTap: () => _speak("$title"),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            Text(
+              icon,
+              style: TextStyle(fontSize: 20 * textScale),
             ),
-          ),
-        ],
+            SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20 * textScale,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTodayEventCard({
+    required String eventId,
+    required String title,
+    required String time,
+    required String location,
+    required String distance,
+    required String groupName,
+    required String description,
+    required List<String> participants,
     required double textScale,
     required bool highContrast,
     required bool boldText,
     required Color textColor,
     required Color secondaryTextColor,
     required Color primaryColor,
-    required String groupName,
     required Color groupColor,
+    required VoidCallback onRegister,
   }) {
+    final isRegistered = participants.contains(FirebaseAuth.instance.currentUser?.uid);
+    final participantCount = participants.length;
+
     return Container(
       decoration: BoxDecoration(
         color: highContrast ? AppColors.highContrastSurface : Colors.white,
@@ -625,6 +817,8 @@ class _HomeTabState extends State<_HomeTab> {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
+             final speakText = "Course d'aujourd'hui : $title à $time. $location. $distance. $participantCount inscrits.";
+             _speak(speakText);
             // TODO: Navigate to event details
           },
           child: Padding(
@@ -690,7 +884,7 @@ class _HomeTabState extends State<_HomeTab> {
                           ),
                           SizedBox(width: 4 * textScale.clamp(1.0, 1.2)),
                           Text(
-                            '18:00',
+                            time,
                             style: TextStyle(
                               color: primaryColor,
                               fontWeight: FontWeight.bold,
@@ -707,7 +901,7 @@ class _HomeTabState extends State<_HomeTab> {
                 
                 // Event Title
                 Text(
-                  'Sortie Tempo',
+                  title,
                   style: TextStyle(
                     fontSize: 22 * textScale,
                     fontWeight: FontWeight.bold,
@@ -720,21 +914,21 @@ class _HomeTabState extends State<_HomeTab> {
                 // Details
                 _buildEventDetail(
                   icon: Icons.location_on_outlined,
-                  text: 'Lac de Tunis - Entrée Sud',
+                  text: location,
                   textScale: textScale,
                   color: secondaryTextColor,
                 ),
                 SizedBox(height: 6 * textScale.clamp(1.0, 1.2)),
                 _buildEventDetail(
                   icon: Icons.straighten,
-                  text: '12 km  •  Allure: 5:30-6:30 min/km',
+                  text: '$distance  •  $description',
                   textScale: textScale,
                   color: secondaryTextColor,
                 ),
                 SizedBox(height: 6 * textScale.clamp(1.0, 1.2)),
                 _buildEventDetail(
                   icon: Icons.people_outline,
-                  text: '12/40 inscrits',
+                  text: '$participantCount inscrits',
                   textScale: textScale,
                   color: secondaryTextColor,
                 ),
@@ -751,22 +945,26 @@ class _HomeTabState extends State<_HomeTab> {
                         SnackBar(
                           content: Row(
                             children: [
-                              const Icon(Icons.check_circle, color: Colors.white),
+                              Icon(isRegistered ? Icons.cancel : Icons.check_circle, color: Colors.white),
                               SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
                               Text(
-                                'Inscription confirmée!',
+                                isRegistered ? 'Désinscription confirmée' : 'Inscription confirmée!',
                                 style: TextStyle(fontSize: 14 * textScale),
                               ),
                             ],
                           ),
-                          backgroundColor: AppColors.success,
+                          backgroundColor: isRegistered ? Colors.grey : AppColors.success,
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
+                      onRegister();
                     },
-                    icon: Icon(Icons.check_circle_outline, size: 20 * textScale.clamp(1.0, 1.2)),
+                    icon: Icon(
+                        isRegistered ? Icons.cancel_outlined : Icons.check_circle_outline, 
+                        size: 20 * textScale.clamp(1.0, 1.2)
+                    ),
                     label: Text(
-                      "S'INSCRIRE",
+                      isRegistered ? "SE DÉSINSCRIRE" : "JE PARTICIPE",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15 * textScale,
@@ -797,20 +995,23 @@ class _HomeTabState extends State<_HomeTab> {
     required double textScale,
     required Color color,
   }) {
-    return Row(
-      children: [
-        Icon(icon, size: 18 * textScale.clamp(1.0, 1.2), color: color),
-        SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 14 * textScale,
+    return InkWell(
+      onTap: () => _speak(text),
+      child: Row(
+        children: [
+          Icon(icon, size: 18 * textScale.clamp(1.0, 1.2), color: color),
+          SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 14 * textScale,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -871,7 +1072,10 @@ class _HomeTabState extends State<_HomeTab> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            _speak("Action rapide : $label");
+            onTap();
+          },
           borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
@@ -888,14 +1092,17 @@ class _HomeTabState extends State<_HomeTab> {
                   size: 28 * textScale.clamp(1.0, 1.2),
                 ),
                 SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12 * textScale,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12 * textScale,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -937,6 +1144,8 @@ class _HomeTabState extends State<_HomeTab> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
+             final speakText = "Événement à venir : $title le $date à $time. $location. $distance. Groupe $group.";
+            _speak(speakText);
             // TODO: Navigate to event details
           },
           child: Padding(

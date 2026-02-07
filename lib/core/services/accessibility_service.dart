@@ -620,6 +620,7 @@ class AccessibilityService extends ChangeNotifier {
 
   Map<String, dynamic> getProfileJson() {
     return {
+      'languageCode': _currentLanguage.code,
       'isProfileComplete': true,
       'completedAt': DateTime.now().toIso8601String(), // Will be converted to Timestamp by Firestore
       'lastUpdated': DateTime.now().toIso8601String(),

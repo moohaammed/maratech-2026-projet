@@ -15,7 +15,7 @@ class AppColors {
   static const Color divider = Color(0xFFE0E0E0);
   
   // High Contrast (Accessibilty)
-  static const Color highContrastPrimary = Color(0xFF00E676); // Bright green
+  static const Color highContrastPrimary = Color(0xFFFFD600); // Bright Yellow/Gold - Better standard for High Contrast
   static const Color highContrastSurface = Color(0xFF121212); // Very dark gray
   static const Color highContrastBackground = Colors.black;
   
