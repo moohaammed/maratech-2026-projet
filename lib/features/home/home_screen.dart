@@ -2218,7 +2218,7 @@ class _ProfileTabState extends State<_ProfileTab> {
               onPressed: () async {
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
-                   Navigator.pushNamedAndRemoveUntil(context, '/accessibility-wizard', (route) => false);
+                   Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                 }
               },
               icon: Icon(Icons.logout, size: 20 * textScale.clamp(1.0, 1.2)),

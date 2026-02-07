@@ -139,7 +139,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
               if (mounted) {
                 await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
                 if (mounted) {
-                  Navigator.pushReplacementNamed(context, '/');
+                  Navigator.pushReplacementNamed(context, '/login');
                 }
               }
             },

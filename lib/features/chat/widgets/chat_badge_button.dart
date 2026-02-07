@@ -26,6 +26,8 @@ class _ChatBadgeButtonState extends State<ChatBadgeButton> {
   String? _groupId;
   bool _isFirstLoad = true;
 
+  int _previousCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -50,29 +52,50 @@ class _ChatBadgeButtonState extends State<ChatBadgeButton> {
     final lastReadIso = prefs.getString('chat_last_read_$groupId');
     _lastReadTime = lastReadIso != null ? DateTime.parse(lastReadIso) : DateTime.now().subtract(const Duration(days: 1));
 
+    // Limit query to recent messages (last 7 days) to avoid fetching too much history
+    // but allow filtering locally for unread count
+    final queryDate = DateTime.now().subtract(const Duration(days: 7));
+
     // Listen to messages
     FirebaseFirestore.instance
         .collection('groupChats')
         .doc(groupId)
         .collection('messages')
-        .where('createdAt', isGreaterThan: Timestamp.fromDate(_lastReadTime!))
+        .where('createdAt', isGreaterThan: Timestamp.fromDate(queryDate))
         .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snapshot) {
       if (mounted) {
-        // Filter out own messages
-        final otherMessages = snapshot.docs.where((doc) {
+        // Filter: received messages AND newer than last read
+        final unreadMessages = snapshot.docs.where((doc) {
           final data = doc.data();
-          return data['senderId'] != user.uid;
+          final isOther = data['senderId'] != user.uid;
+          
+          if (!isOther) return false;
+          
+          final timestamp = data['createdAt'] as Timestamp?;
+          if (timestamp == null) return false;
+          
+          final date = timestamp.toDate();
+          return date.isAfter(_lastReadTime!);
         }).toList();
         
-        final count = otherMessages.length;
+        final count = unreadMessages.length;
         
-        // Check for NEW messages (only after initial load)
-        if (!_isFirstLoad && count > _unreadCount) {
+        // Initial sync
+        if (_isFirstLoad) {
+           _previousCount = count;
+           _isFirstLoad = false;
+           setState(() => _unreadCount = count);
+           return;
+        }
+        
+        // Check for NEW received messages
+        // Notification only if count INCREASED compared to previous snapshot processing
+        if (count > _previousCount) {
           // Play sound and show notification if we have messages
-          if (otherMessages.isNotEmpty) {
-            final lastMsg = otherMessages.first.data();
+          if (unreadMessages.isNotEmpty) {
+            final lastMsg = unreadMessages.first.data();
             final sender = lastMsg['senderName'] ?? 'Groupe';
             final text = lastMsg['text'] ?? 'Nouveau message';
             
@@ -81,8 +104,7 @@ class _ChatBadgeButtonState extends State<ChatBadgeButton> {
           }
         }
         
-        _isFirstLoad = false;
-        
+        _previousCount = count;
         setState(() => _unreadCount = count);
       }
     });
@@ -97,9 +119,15 @@ class _ChatBadgeButtonState extends State<ChatBadgeButton> {
           onPressed: () async {
             // Update last read time locally when opening
             if (_groupId != null) {
+              final now = DateTime.now();
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('chat_last_read_$_groupId', DateTime.now().toIso8601String());
-              setState(() => _unreadCount = 0);
+              await prefs.setString('chat_last_read_$_groupId', now.toIso8601String());
+              
+              setState(() {
+                _unreadCount = 0;
+                _previousCount = 0; // Reset previous count to avoid immediate notification on next stream event
+                _lastReadTime = now; // Update filter time for future stream events
+              });
             }
             widget.onPressed();
           },

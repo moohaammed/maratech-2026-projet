@@ -74,7 +74,7 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
                   if (mounted) {
                     await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
                     if (mounted) {
-                      Navigator.pushReplacementNamed(context, '/');
+                      Navigator.pushReplacementNamed(context, '/login');
                     }
                   }
                 },

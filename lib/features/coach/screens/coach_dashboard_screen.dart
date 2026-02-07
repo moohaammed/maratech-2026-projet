@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'events/event_list_screen.dart';
 
@@ -33,7 +34,10 @@ class CoachDashboardScreen extends StatelessWidget {
             ),
             child: IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+              },
               tooltip: 'Déconnexion',
             ),
           ),
