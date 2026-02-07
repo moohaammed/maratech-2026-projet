@@ -375,13 +375,7 @@ class _HomeTabState extends State<_HomeTab> {
                   size: 26 * textScale.clamp(1.0, 1.2),
                 ),
                 onPressed: () {
-                  // TODO: Navigate to notifications
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Notifications à venir', style: TextStyle(fontSize: 14 * textScale)),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  Navigator.pushNamed(context, '/notifications');
                 },
                 tooltip: 'Notifications',
               ),

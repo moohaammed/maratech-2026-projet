@@ -10,10 +10,11 @@ plugins {
 
 android {
     namespace = "com.example.impact"
-    compileSdk = 36  // Updated for flutter_tts compatibility
+    compileSdk = 36  // Android 16 - required by plugins
     ndkVersion = "28.2.13676358"
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -28,9 +29,10 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24  // Updated for accessibility plugins
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35  // Target Android 15 for compatibility with physical devices
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -40,6 +42,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

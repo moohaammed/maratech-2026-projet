@@ -113,6 +113,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         ) : null,
         actions: [
           IconButton(
+            icon: const Icon(Icons.notifications_active),
+            tooltip: 'Test FCM Push',
+            onPressed: () {
+              Navigator.pushNamed(context, '/fcm-test');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
