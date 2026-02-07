@@ -6,6 +6,7 @@ class AppTheme {
   static ThemeData lightTheme({
     double textScale = 1.0,
     bool boldText = false,
+    bool isDyslexic = false,
   }) {
     return ThemeData(
       useMaterial3: true,
@@ -30,7 +31,7 @@ class AppTheme {
       ),
 
       // Text Theme
-      textTheme: _buildTextTheme(textScale, boldText, AppColors.textPrimary),
+      textTheme: _buildTextTheme(textScale, boldText, isDyslexic, AppColors.textPrimary),
 
       // Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -40,7 +41,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           minimumSize: const Size(0, 48), // WCAG min touch target
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: TextStyle(
             fontSize: 16 * textScale,
@@ -83,6 +84,7 @@ class AppTheme {
   static ThemeData highContrastTheme({
     double textScale = 1.0,
     bool boldText = true,
+    bool isDyslexic = false,
   }) {
     return ThemeData(
       useMaterial3: true,
@@ -113,7 +115,7 @@ class AppTheme {
       ),
 
       // Text Theme
-      textTheme: _buildTextTheme(textScale, true, Colors.white),
+      textTheme: _buildTextTheme(textScale, true, isDyslexic, Colors.white),
 
       // Button Theme - Larger for accessibility
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -168,26 +170,41 @@ class AppTheme {
     );
   }
 
-  static TextTheme _buildTextTheme(double scale, bool bold, Color color) {
+  static TextTheme _buildTextTheme(double scale, bool bold, bool isDyslexic, Color color) {
     final weight = bold ? FontWeight.bold : FontWeight.normal;
     final mediumWeight = bold ? FontWeight.bold : FontWeight.w500;
+    
+    // Dyslexia adjustments: Extra spacing and line height
+    final double letterSpacing = isDyslexic ? 1.5 : 0.0;
+    final double wordSpacing = isDyslexic ? 2.0 : 0.0;
+    final double height = isDyslexic ? 1.4 : 1.2;
+
+    TextStyle base(double size, FontWeight w) => TextStyle(
+      fontSize: size * scale, 
+      fontWeight: w, 
+      color: color,
+      letterSpacing: letterSpacing,
+      wordSpacing: wordSpacing,
+      height: height,
+      fontFamily: isDyslexic ? 'Verdana' : null, // Prefer sans-serif for dyslexia
+    );
 
     return TextTheme(
-      displayLarge: TextStyle(fontSize: 57 * scale, fontWeight: weight, color: color),
-      displayMedium: TextStyle(fontSize: 45 * scale, fontWeight: weight, color: color),
-      displaySmall: TextStyle(fontSize: 36 * scale, fontWeight: weight, color: color),
-      headlineLarge: TextStyle(fontSize: 32 * scale, fontWeight: weight, color: color),
-      headlineMedium: TextStyle(fontSize: 28 * scale, fontWeight: weight, color: color),
-      headlineSmall: TextStyle(fontSize: 24 * scale, fontWeight: mediumWeight, color: color),
-      titleLarge: TextStyle(fontSize: 22 * scale, fontWeight: mediumWeight, color: color),
-      titleMedium: TextStyle(fontSize: 16 * scale, fontWeight: mediumWeight, color: color),
-      titleSmall: TextStyle(fontSize: 14 * scale, fontWeight: mediumWeight, color: color),
-      bodyLarge: TextStyle(fontSize: 16 * scale, fontWeight: weight, color: color),
-      bodyMedium: TextStyle(fontSize: 14 * scale, fontWeight: weight, color: color),
-      bodySmall: TextStyle(fontSize: 12 * scale, fontWeight: weight, color: color),
-      labelLarge: TextStyle(fontSize: 14 * scale, fontWeight: mediumWeight, color: color),
-      labelMedium: TextStyle(fontSize: 12 * scale, fontWeight: mediumWeight, color: color),
-      labelSmall: TextStyle(fontSize: 11 * scale, fontWeight: mediumWeight, color: color),
+      displayLarge: base(57, weight),
+      displayMedium: base(45, weight),
+      displaySmall: base(36, weight),
+      headlineLarge: base(32, weight),
+      headlineMedium: base(28, weight),
+      headlineSmall: base(24, mediumWeight),
+      titleLarge: base(22, mediumWeight),
+      titleMedium: base(16, mediumWeight),
+      titleSmall: base(14, mediumWeight),
+      bodyLarge: base(16, weight),
+      bodyMedium: base(14, weight),
+      bodySmall: base(12, weight),
+      labelLarge: base(14, mediumWeight),
+      labelMedium: base(12, mediumWeight),
+      labelSmall: base(11, mediumWeight),
     );
   }
 }

@@ -216,7 +216,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       child: ClipOval(
                         child: Image.asset(
-                          'assets/logo.jpg',
+                          'assets/logo_rct.png',
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
@@ -236,7 +236,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                     // App Name
                     const Text(
-                      'Running Club',
+                      'RCT',
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.bold,
@@ -252,7 +252,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const Text(
-                      'TUNIS',
+                      'Running Club Tunis',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w300,

@@ -1911,80 +1911,190 @@ class _ProfileTab extends StatelessWidget {
       backgroundColor: bgColor,
       appBar: AppBar(
         title: Text(
-          'Profil',
-          style: TextStyle(fontSize: 20 * textScale),
+          'Profil & Paramètres',
+          style: TextStyle(fontSize: 20 * textScale, fontWeight: FontWeight.bold),
         ),
         backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
         foregroundColor: highContrast ? primaryColor : Colors.white,
+        elevation: 0,
       ),
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24 * textScale.clamp(1.0, 1.2)),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.person,
-                size: 64 * textScale.clamp(1.0, 1.3),
-                color: primaryColor.withOpacity(0.5),
-              ),
-              SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
-              Text(
-                '👤 Profil utilisateur',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18 * textScale,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+      body: ListView(
+        padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
+        children: [
+          // User Header
+          Center(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40 * textScale.clamp(1.0, 1.3),
+                  backgroundColor: primaryColor.withOpacity(0.1),
+                  child: Icon(Icons.person, size: 48 * textScale.clamp(1.0, 1.3), color: primaryColor),
                 ),
-              ),
-              SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
-              Text(
-                'Statistiques • Paramètres • Accessibilité',
-                style: TextStyle(
-                  fontSize: 14 * textScale,
-                  color: textColor.withOpacity(0.6),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 48 * textScale.clamp(1.0, 1.2)),
-              
-              // Logout Button
-              SizedBox(
-                width: double.infinity,
-                height: 56 * textScale.clamp(1.0, 1.2),
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    
-                    // Reset profile to local/wizard (Device Owner) settings
-                    if (context.mounted) {
-                      await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
-                      if (context.mounted) {
-                        Navigator.pushReplacementNamed(context, '/login');
-                      }
-                    }
-                  },
-                  icon: Icon(Icons.logout, size: 20 * textScale.clamp(1.0, 1.2)),
-                  label: Text(
-                    'Déconnexion',
-                    style: TextStyle(
-                      fontSize: 16 * textScale,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+                Text(
+                  'Membre du Club',
+                  style: TextStyle(
+                    fontSize: 20 * textScale,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                    fontFamily: profile.dyslexicMode ? 'Verdana' : null,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          
+          SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
+          
+          // Accessibility Settings
+          _buildSectionHeader("Accessibilité Visuelle", textScale, textColor),
+          _buildSwitchTile(
+            context,
+            title: "Mode Dyslexie",
+            subtitle: "Police et espacements adaptés",
+            value: profile.dyslexicMode,
+            onChanged: (val) => accessibility.updateProfile(profile.copyWith(dyslexicMode: val)),
+            textScale: textScale,
+            textColor: textColor,
+            activeColor: primaryColor,
+          ),
+          _buildSwitchTile(
+            context,
+            title: "Contraste Élevé",
+            subtitle: "Couleurs distinctes (Noir/Blanc/Jaune)",
+            value: profile.highContrast,
+            onChanged: (val) => accessibility.updateProfile(profile.copyWith(highContrast: val)),
+            textScale: textScale,
+            textColor: textColor,
+            activeColor: primaryColor,
+          ),
+          
+          SizedBox(height: 16 * textScale.clamp(1.0, 1.2)),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Taille du texte: ${(profile.textSize * 100).toInt()}%",
+                  style: TextStyle(fontSize: 16 * textScale, fontWeight: FontWeight.w600, color: textColor),
+                ),
+                Slider(
+                  value: profile.textSize,
+                  min: 1.0,
+                  max: 2.0,
+                  divisions: 5,
+                  label: "${(profile.textSize * 100).toInt()}%",
+                  activeColor: primaryColor,
+                  onChanged: (val) => accessibility.updateProfile(profile.copyWith(textSize: val)),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+          
+          _buildSectionHeader("Audio & Assistance", textScale, textColor),
+          _buildSwitchTile(
+             context,
+             title: "Vibrations",
+             subtitle: "Retour haptique au toucher",
+             value: profile.vibrationEnabled,
+             onChanged: (val) => accessibility.updateProfile(profile.copyWith(vibrationEnabled: val)),
+             textScale: textScale,
+             textColor: textColor,
+             activeColor: primaryColor,
+          ),
+
+           SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
+
+          // Logout
+          SizedBox(
+            width: double.infinity,
+            height: 56 * textScale.clamp(1.0, 1.2),
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
+                  if (context.mounted) {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  }
+                }
+              },
+              icon: Icon(Icons.logout, size: 20 * textScale.clamp(1.0, 1.2)),
+              label: Text(
+                'Déconnexion',
+                style: TextStyle(
+                  fontSize: 16 * textScale,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: 32 * textScale),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, double textScale, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, left: 8.0),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18 * textScale,
+          fontWeight: FontWeight.bold,
+          color: color.withOpacity(0.8),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool value,
+    required Function(bool) onChanged,
+    required double textScale,
+    required Color textColor,
+    required Color activeColor,
+  }) {
+    return Card(
+      elevation: 0,
+       color: textColor == Colors.white ? Colors.white.withOpacity(0.1) : Colors.grey.shade100,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SwitchListTile(
+        title: Text(
+          title, 
+          style: TextStyle(
+            fontSize: 16 * textScale, 
+            fontWeight: FontWeight.w600,
+            color: textColor
+          )
+        ),
+        subtitle: Text(
+          subtitle, 
+          style: TextStyle(
+            fontSize: 13 * textScale, 
+            color: textColor.withOpacity(0.7)
+          )
+        ),
+        value: value,
+        onChanged: onChanged,
+        activeColor: activeColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
     );
   }

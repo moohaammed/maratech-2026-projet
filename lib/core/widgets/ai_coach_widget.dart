@@ -560,8 +560,9 @@ Parle ou écris ta question! 🎤''';
     
     _scrollToBottom();
     
-    // Speak response if voice guidance enabled
-    if (accessibility.voiceGuidanceEnabled) {
+    // Speak response for blind users OR if voice guidance enabled
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (accessibility.voiceGuidanceEnabled || profile.visualNeeds == 'blind') {
       accessibility.speak(response);
     }
   }

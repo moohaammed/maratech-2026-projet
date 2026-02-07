@@ -8,6 +8,7 @@ class AccessibilityProfile {
   final double textSize; // 1.0 to 2.0 (100% to 200%)
   final bool highContrast;
   final bool boldText;
+  final bool dyslexicMode;
 
   // Audio
   final String audioNeeds; // 'normal', 'hearing_loss', 'deaf'
@@ -29,6 +30,7 @@ class AccessibilityProfile {
     this.textSize = 1.0,
     this.highContrast = false,
     this.boldText = false,
+    this.dyslexicMode = false,
     this.audioNeeds = 'normal',
     this.vibrationEnabled = true,
     this.visualNotifications = false,
@@ -64,6 +66,7 @@ class AccessibilityProfile {
       textSize: textSize,
       highContrast: isHighContrast,
       boldText: visual['boldText'] ?? false,
+      dyslexicMode: visual['dyslexicMode'] ?? false,
       audioNeeds: audio['needsCategory'] ?? 'normal',
       vibrationEnabled: audio['vibrationEnabled'] ?? true,
       visualNotifications:
@@ -85,6 +88,7 @@ class AccessibilityProfile {
         'textSize': (textSize * 100).toInt(),
         'contrastMode': highContrast ? 'high' : 'standard',
         'boldText': boldText,
+        'dyslexicMode': dyslexicMode,
       },
       'audio': {
         'needsCategory': audioNeeds,
@@ -109,6 +113,7 @@ class AccessibilityProfile {
     double? textSize,
     bool? highContrast,
     bool? boldText,
+    bool? dyslexicMode,
     String? audioNeeds,
     bool? vibrationEnabled,
     bool? visualNotifications,
@@ -123,6 +128,7 @@ class AccessibilityProfile {
       textSize: textSize ?? this.textSize,
       highContrast: highContrast ?? this.highContrast,
       boldText: boldText ?? this.boldText,
+      dyslexicMode: dyslexicMode ?? this.dyslexicMode,
       audioNeeds: audioNeeds ?? this.audioNeeds,
       vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
       visualNotifications: visualNotifications ?? this.visualNotifications,

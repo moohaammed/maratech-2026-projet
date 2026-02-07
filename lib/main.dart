@@ -77,11 +77,13 @@ class RunningClubApp extends StatelessWidget {
       theme = AppTheme.highContrastTheme(
         textScale: profile.textSize,
         boldText: profile.boldText,
+        isDyslexic: profile.dyslexicMode,
       );
     } else {
       theme = AppTheme.lightTheme(
         textScale: profile.textSize,
         boldText: profile.boldText,
+        isDyslexic: profile.dyslexicMode,
       );
     }
 
@@ -94,7 +96,7 @@ class RunningClubApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      title: 'Running Club Tunis',
+      title: 'RCT',
       debugShowCheckedModeBanner: false,
       theme: theme,
       

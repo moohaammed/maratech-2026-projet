@@ -1,0 +1,10 @@
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/logo_rct.png"
+  android_12:
+    image: "assets/logo_rct.png"
+    icon_background_color: "#ffffff"
+  
+  android: true
+  ios: true
+  web: false
