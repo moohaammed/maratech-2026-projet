@@ -70,6 +70,15 @@ class NotificationService {
       enableVibration: true,
     );
 
+    const AndroidNotificationChannel chatMessagesChannel = AndroidNotificationChannel(
+      'chat_messages',
+      'Messages de chat',
+      description: 'Notifications pour les nouveaux messages',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+
     // Créer les canaux sur l'appareil Android
     final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
         FlutterLocalNotificationsPlugin();
@@ -85,6 +94,10 @@ class NotificationService {
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(highImportanceChannel);
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(chatMessagesChannel);
 
     debugPrint("✅ Canaux de notification créés avec importance MAX");
 
@@ -384,8 +397,31 @@ class NotificationService {
     debugPrint("✅ Rappel programmé pour $title à $reminderTime");
   }
 
+  Future<void> showChatMessageNotification(String sender, String message) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'chat_messages',
+      'Messages de chat',
+      channelDescription: 'Notifications pour les nouveaux messages',
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: 'Nouveau message',
+      playSound: true,
+      enableVibration: true,
+    );
+    
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+    
+    await _localNotifications.show(
+      DateTime.now().millisecond,
+      sender,
+      message,
+      details,
+    );
+  }
+}
+
 
   Future<void> cancelReminder(String id) async {
     await _localNotifications.cancel(id: id.hashCode);
   }
-}
+
