@@ -412,16 +412,15 @@ class NotificationService {
     const NotificationDetails details = NotificationDetails(android: androidDetails);
     
     await _localNotifications.show(
-      DateTime.now().millisecond,
-      sender,
-      message,
-      details,
+      id: DateTime.now().millisecond,
+      title: sender,
+      body: message,
+      notificationDetails: details,
     );
   }
-}
-
 
   Future<void> cancelReminder(String id) async {
     await _localNotifications.cancel(id: id.hashCode);
   }
+}
 
