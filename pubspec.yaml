@@ -37,6 +37,13 @@ dependencies:
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
+  provider: ^6.1.5+1
+  
+  # Accessibility - TRUE accessibility features
+  flutter_tts: ^4.2.0              # Text-to-speech - SPEAK to users
+  speech_to_text: ^7.0.0           # Voice commands - LISTEN to users
+  vibration: ^3.0.0                # Haptic feedback - FEEL confirmations
+  shared_preferences: ^2.3.4       # Store accessibility preferences locally
 
 dev_dependencies:
   flutter_test:
@@ -60,10 +67,13 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Assets - Images for splash screen and app
+  assets:
+    - assets/image1.jpg
+    - assets/image2.jpg
+    - assets/image3.jpg
+
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
