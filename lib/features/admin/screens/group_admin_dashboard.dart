@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../accessibility/providers/accessibility_provider.dart';
 import '../services/group_service.dart';
 import '../services/user_service.dart';
 import '../models/group_model.dart';
@@ -36,6 +38,15 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.info;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : Colors.white;
+
     return StreamBuilder<List<GroupModel>>(
       stream: _getEffectiveGroupsStream(),
       builder: (context, snapshot) {
@@ -43,31 +54,37 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
         final hasGroup = groups.isNotEmpty;
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: bgColor,
           appBar: AppBar(
-            title: const Column(
+            title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Responsable de Groupe', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Gestion des entraînements', style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
+                Text('Responsable de Groupe', style: TextStyle(fontWeight: FontWeight.bold, fontSize: (18 * textScale).toDouble())),
+                Text('Gestion des entraînements - RCT', style: TextStyle(fontSize: (12 * textScale).toDouble(), fontWeight: FontWeight.normal)),
               ],
             ),
-            backgroundColor: AppColors.info,
-            foregroundColor: Colors.white,
+            backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+            foregroundColor: highContrast ? primaryColor : Colors.white,
             elevation: 0,
             actions: [
               IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () async {
                   await FirebaseAuth.instance.signOut();
-                  if (mounted) Navigator.pushReplacementNamed(context, '/login');
+                  if (mounted) {
+                    await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
+                    if (mounted) {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    }
+                  }
                 },
               ),
             ],
             bottom: TabBar(
               controller: _tabController,
-              indicatorColor: Colors.white,
+              indicatorColor: highContrast ? primaryColor : Colors.white,
               indicatorWeight: 4,
+              labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: (15 * textScale).toDouble()),
               tabs: const [
                 Tab(text: 'Mes Groupes', icon: Icon(Icons.group_work)),
                 Tab(text: 'Affecter Membres', icon: Icon(Icons.person_add)),
@@ -77,17 +94,18 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
           body: TabBarView(
             controller: _tabController,
             children: [
-              _buildGroupsTab(groups),
-              _buildMembersTab(groups),
+              _buildGroupsTab(groups, textScale, highContrast, primaryColor),
+              _buildMembersTab(groups, textScale, highContrast, primaryColor),
             ],
           ),
           floatingActionButton: hasGroup 
             ? null 
             : FloatingActionButton.extended(
                 onPressed: () => _showCreateGroupDialog(context),
-                backgroundColor: AppColors.info,
+                backgroundColor: primaryColor,
+                foregroundColor: highContrast ? Colors.black : Colors.white,
                 icon: const Icon(Icons.add),
-                label: const Text('Nouveau Groupe'),
+                label: Text('Nouveau Groupe', style: TextStyle(fontSize: (14 * textScale).toDouble())),
               ),
         );
       }
@@ -99,12 +117,12 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
     return _groupService.getGroupsStream();
   }
 
-  Widget _buildGroupsTab(List<GroupModel> groups) {
+  Widget _buildGroupsTab(List<GroupModel> groups, double textScale, bool highContrast, Color primaryColor) {
     if (groups.isNotEmpty) {
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: groups.length,
-        itemBuilder: (context, index) => _buildGroupCard(groups[index]),
+        itemBuilder: (context, index) => _buildGroupCard(groups[index], textScale, highContrast, primaryColor),
       );
     }
 
@@ -237,22 +255,22 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
     );
   }
 
-  Widget _buildGroupCard(GroupModel group) {
+  Widget _buildGroupCard(GroupModel group, double textScale, bool highContrast, Color primaryColor) {
     Color levelColor = _getLevelColor(group.level);
     
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: highContrast ? AppColors.highContrastSurface : Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
+        boxShadow: highContrast ? null : [
           BoxShadow(
             color: levelColor.withOpacity(0.15),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: highContrast ? levelColor : Colors.white.withOpacity(0.1), width: highContrast ? 2 : 1),
       ),
       child: Column(
         children: [
@@ -260,17 +278,18 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: highContrast ? null : LinearGradient(
                 colors: [levelColor.withOpacity(0.1), levelColor.withOpacity(0.05)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
+              color: highContrast ? Colors.black26 : null,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
@@ -281,7 +300,7 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
                       ),
                     ],
                   ),
-                  child: Icon(Icons.groups_rounded, color: levelColor, size: 28),
+                  child: Icon(Icons.groups_rounded, color: levelColor, size: 28 * textScale.clamp(1.0, 1.2)),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -391,7 +410,7 @@ class _GroupAdminDashboardState extends State<GroupAdminDashboard> with TickerPr
     );
   }
 
-  Widget _buildMembersTab(List<GroupModel> groups) {
+  Widget _buildMembersTab(List<GroupModel> groups, double textScale, bool highContrast, Color primaryColor) {
     return Column(
       children: [
         Container(

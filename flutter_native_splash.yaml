@@ -1,8 +1,8 @@
 flutter_native_splash:
   color: "#ffffff"
-  image: "assets/logo_rct.png"
+  image: "assets/logo.jpg"
   android_12:
-    image: "assets/logo_rct.png"
+    image: "assets/logo.jpg"
     icon_background_color: "#ffffff"
   
   android: true

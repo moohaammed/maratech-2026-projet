@@ -381,7 +381,7 @@ class _HomeTabState extends State<_HomeTab> {
         foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: highContrast ? 0 : 2,
         title: InkWell(
-          onTap: () => _speak("Running Club Tunis. Appuyez pour écouter."),
+          onTap: () => _speak("RCT. Appuyez pour écouter."),
           child: Row(
             children: [
               Image.asset(
@@ -395,7 +395,7 @@ class _HomeTabState extends State<_HomeTab> {
               ),
               SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
               Text(
-                'Running Club Tunis',
+                'RCT',
                 style: TextStyle(
                   fontSize: 18 * textScale,
                   fontWeight: FontWeight.bold,
@@ -668,10 +668,12 @@ class _HomeTabState extends State<_HomeTab> {
         width: double.infinity,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          border: highContrast ? Border.all(color: primaryColor, width: 2) : null,
+          border: highContrast 
+              ? Border.all(color: primaryColor, width: 2) 
+              : Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
           boxShadow: highContrast ? null : [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: primaryColor.withOpacity(0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),

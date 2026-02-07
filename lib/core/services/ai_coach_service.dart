@@ -85,7 +85,7 @@ class AICoachService extends ChangeNotifier {
 ''';
       case 'en':
         return '''
-You are "Smart Coach" for Running Club Tunis. You're a friendly assistant helping members with:
+You are "Smart Coach" for RCT (Running Club Tunis). You're a friendly assistant helping members with:
 - Learning about upcoming events and runs
 - Training advice
 - Club information

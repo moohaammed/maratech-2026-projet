@@ -8,6 +8,7 @@ import 'admin_management_screen.dart';
 import 'group_admin_dashboard.dart';
 import '../../coach/screens/coach_dashboard_screen.dart';
 import 'package:provider/provider.dart';
+import '../../accessibility/providers/accessibility_provider.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -60,19 +61,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
 
   @override
   Widget build(BuildContext context) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final profile = accessibility.profile;
+    final textScale = profile.textSize;
+    final highContrast = profile.highContrast;
+    
+    final primaryColor = highContrast ? AppColors.highContrastPrimary : AppColors.primary;
+    final bgColor = highContrast ? Colors.black : AppColors.background;
+    final textColor = highContrast ? Colors.white : AppColors.textPrimary;
+    final surfaceColor = highContrast ? AppColors.highContrastSurface : Colors.white;
+
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_currentUser == null) {
       return Scaffold(
+        backgroundColor: bgColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Erreur: Utilisateur non trouvé'),
+              Text('Erreur: Utilisateur non trouvé', style: TextStyle(color: textColor, fontSize: 16 * textScale)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
@@ -93,19 +106,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       return const CoachDashboardScreen();
     }
 
-    // Default view for Main Admin (using the user's provided "correct" version)
+    // Default view for Main Admin
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('Admin Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        title: Text('Admin Dashboard', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20 * textScale)),
+        backgroundColor: highContrast ? AppColors.highContrastSurface : primaryColor,
+        foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: 0,
         bottom: _tabController != null ? TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
+          indicatorColor: highContrast ? primaryColor : Colors.white,
           indicatorWeight: 4,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale),
           tabs: const [
             Tab(text: 'Utilisateurs', icon: Icon(Icons.people)),
             Tab(text: 'Administrateurs', icon: Icon(Icons.security)),
@@ -123,7 +136,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
-              if (mounted) Navigator.pushReplacementNamed(context, '/login');
+              if (mounted) {
+                await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
+              }
             },
           ),
         ],
@@ -131,7 +149,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       body: Column(
         children: [
           // Statistics Header
-          _buildStatisticsHeader(),
+          _buildStatisticsHeader(highContrast, primaryColor, textScale),
           
           // Tab Content
           Expanded(
@@ -150,22 +168,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     );
   }
 
-  Widget _buildStatisticsHeader() {
+  Widget _buildStatisticsHeader(bool highContrast, Color primaryColor, double textScale) {
     return StreamBuilder<Map<String, int>>(
       stream: _userService.getUserStatisticsStream(),
       builder: (context, snapshot) {
         final stats = snapshot.data ?? {'total': 0, 'active': 0};
         
         return Container(
-          color: AppColors.primary,
+          color: highContrast ? Colors.black : primaryColor,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           child: Row(
             children: [
-              _buildStatCard('Total', stats['total']?.toString() ?? '0', Icons.group),
-              const SizedBox(width: 16),
-              _buildStatCard('Actifs', stats['active']?.toString() ?? '0', Icons.check_circle),
-              const SizedBox(width: 16),
-              _buildStatCard('Admins', ((stats['mainAdmins'] ?? 0) + (stats['coachAdmins'] ?? 0) + (stats['groupAdmins'] ?? 0)).toString(), Icons.security),
+              _buildStatCard('Total', stats['total']?.toString() ?? '0', Icons.group, highContrast, textScale, primaryColor),
+              const SizedBox(width: 12),
+              _buildStatCard('Actifs', stats['active']?.toString() ?? '0', Icons.check_circle, highContrast, textScale, primaryColor),
+              const SizedBox(width: 12),
+              _buildStatCard('Admins', ((stats['mainAdmins'] ?? 0) + (stats['coachAdmins'] ?? 0) + (stats['groupAdmins'] ?? 0)).toString(), Icons.security, highContrast, textScale, primaryColor),
             ],
           ),
         );
@@ -173,33 +191,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon) {
+  Widget _buildStatCard(String label, String value, IconData icon, bool highContrast, double textScale, Color primaryColor) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
+          color: highContrast ? AppColors.highContrastSurface : Colors.white.withOpacity(0.2),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          border: Border.all(color: highContrast ? primaryColor : Colors.white.withOpacity(0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 20),
+            Icon(icon, color: highContrast ? primaryColor : Colors.white, size: 20 * textScale),
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
+              style: TextStyle(
+                color: highContrast ? Colors.white : Colors.white,
+                fontSize: 22 * textScale,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 12,
+                color: highContrast ? primaryColor : Colors.white.withOpacity(0.9),
+                fontSize: 11 * textScale,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],

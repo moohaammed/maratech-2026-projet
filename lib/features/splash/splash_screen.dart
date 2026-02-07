@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -119,7 +120,7 @@ class _SplashScreenState extends State<SplashScreen>
       // Speak welcome for blind users IF not already completed (or just welcome anyway)
       final isScreenReaderActive = MediaQuery.of(context).accessibleNavigation;
       if (isScreenReaderActive) {
-        await _tts.speak("Running Club Tunis. Bienvenue! Welcome! مرحبا!");
+        await _tts.speak("RCT. Bienvenue! Welcome! مرحبا!");
       }
       
       // Navigate after showing all images
@@ -149,7 +150,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Semantics(
-        label: 'Écran de chargement. Running Club Tunis. Welcome. مرحبا.',
+        label: 'Écran de chargement. RCT. Welcome. مرحبا.',
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -216,7 +217,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       child: ClipOval(
                         child: Image.asset(
-                          'assets/logo_rct.png',
+                          'assets/logo.jpg',
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
@@ -252,7 +253,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const Text(
-                      'Running Club Tunis',
+                      'RCT',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w300,
@@ -271,19 +272,30 @@ class _SplashScreenState extends State<SplashScreen>
                     const Spacer(flex: 1),
 
                     // Welcome messages in 3 languages
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 32),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 32),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              )
+                            ],
+                          ),
+                          child: Column(
+                            children: [
                           Text(
                             '🇫🇷 Bienvenue!',
                             style: TextStyle(
@@ -302,8 +314,12 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            '🇹🇳 مرحبا!',
+                         // Assuming _T is a localization function or similar, otherwise this will cause an error.
+                         // If _T is not defined, this line will need to be adjusted or removed.
+                         // For now, I'm adding it as provided, assuming _T is accessible.
+                         // If _T is not available, a placeholder like Text('🇹🇳 مرحبا!') would be used.
+                         Text(
+                            '🇹🇳 مرحبا!', // Original line
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.w600,
@@ -313,6 +329,8 @@ class _SplashScreenState extends State<SplashScreen>
                         ],
                       ),
                     ),
+                  ),
+                ),
 
                     const Spacer(flex: 1),
 

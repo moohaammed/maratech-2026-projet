@@ -90,7 +90,7 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     // 1. Speak French
     await _accessibility.setLanguage(AppLanguage.french);
     await _accessibility.speakWithHaptic(
-      "Bienvenue dans Running Club Tunis! Dites Français, Arabe, ou Anglais."
+      "Bienvenue dans RCT! Dites Français, Arabe, ou Anglais."
     );
     await _accessibility.waitForSpeechComplete();
 
@@ -494,13 +494,13 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     String message;
     switch (_selectedLanguage.code) {
       case 'ar':
-        message = "اكتمل الإعداد! مرحبًا بك في نادي الجري تونس. قل ابدأ.";
+        message = "اكتمل الإعداد! مرحبًا بك في RCT. قل ابدأ.";
         break;
       case 'en':
-        message = "Setup complete! Welcome to Running Club Tunis. Say start.";
+        message = "Setup complete! Welcome to RCT. Say start.";
         break;
       default:
-        message = "Configuration terminée! Bienvenue dans Running Club Tunis. Dites commencer.";
+        message = "Configuration terminée! Bienvenue dans RCT. Dites commencer.";
     }
     
     await _accessibility.speakWithHaptic(message);

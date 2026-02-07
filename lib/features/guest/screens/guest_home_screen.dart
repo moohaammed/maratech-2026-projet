@@ -120,7 +120,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_T('Running Club Tunis - Invité', 'Running Club Tunis - Guest', 'نادي الجري بتونس - ضيف'), 
+        title: Text(_T('RCT - Invité', 'RCT - Guest', 'نادي RCT - ضيف'), 
                    style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,

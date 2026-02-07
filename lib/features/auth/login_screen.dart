@@ -776,7 +776,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
-            'Running Club Tunis',
+            'RCT',
             style: TextStyle(
               fontSize: (isSmall ? 24 : 28) * textScale,
               fontWeight: FontWeight.bold,
