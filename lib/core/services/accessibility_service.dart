@@ -83,6 +83,7 @@ class AccessibilityService extends ChangeNotifier {
 
   // Voice command callbacks
   final Map<String, VoidCallback> _voiceCommandCallbacks = {};
+  DateTime? _lastCommandTime;
   
   // Callback for when speech is recognized (for UI updates)
   Function(String)? onSpeechRecognized;
@@ -145,22 +146,16 @@ class AccessibilityService extends ChangeNotifier {
 
       _tts.setStartHandler(() {
         _isSpeaking = true;
-        // Stop listening while speaking
-        if (_isListening) {
-          _speech.stop();
-          _isListening = false;
-        }
+        // DO NOT stop listening while speaking - allow barge-in
         notifyListeners();
       });
 
       _tts.setCompletionHandler(() {
         _isSpeaking = false;
         notifyListeners();
-        // Resume continuous listening after speaking
-        if (_continuousListeningEnabled && _voiceCommandsEnabled) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            startContinuousListening();
-          });
+        // Ensure listening is active immediately
+        if (_continuousListeningEnabled && _voiceCommandsEnabled && !_isListening) {
+           startContinuousListening();
         }
       });
 
@@ -220,10 +215,9 @@ class AccessibilityService extends ChangeNotifier {
             
             // RESTART listening if continuous mode enabled
             if (_continuousListeningEnabled && 
-                _voiceCommandsEnabled && 
-                !_isSpeaking) {
-              Future.delayed(const Duration(milliseconds: 500), () {
-                startContinuousListening();
+                _voiceCommandsEnabled) {
+              Future.delayed(const Duration(milliseconds: 1000), () {
+                if (!_isListening) startContinuousListening();
               });
             }
           }
@@ -235,10 +229,9 @@ class AccessibilityService extends ChangeNotifier {
           
           // Restart on error too
           if (_continuousListeningEnabled && 
-              _voiceCommandsEnabled && 
-              !_isSpeaking) {
-            Future.delayed(const Duration(seconds: 1), () {
-              startContinuousListening();
+              _voiceCommandsEnabled) {
+            Future.delayed(const Duration(seconds: 2), () { // Longer delay on error
+              if (!_isListening) startContinuousListening();
             });
           }
         },
@@ -260,9 +253,8 @@ class AccessibilityService extends ChangeNotifier {
     _voiceCommandCallbacks.clear();
   }
 
-  /// Start CONTINUOUS listening - always on!
   Future<void> startContinuousListening() async {
-    if (!_isSpeechAvailable || _isListening || _isSpeaking) return;
+    if (!_isSpeechAvailable || _isListening) return; // Removed _isSpeaking check
     if (!_voiceCommandsEnabled) return;
 
     _isListening = true;
@@ -281,8 +273,14 @@ class AccessibilityService extends ChangeNotifier {
           
           debugPrint('Heard: $_lastWords');
 
-          if (result.finalResult && _lastWords.isNotEmpty) {
+          // FAST TRIGGER: Execute on partial results too!
+          // The debounce in _executeVoiceCommand will prevent double-firing.
+          if (_lastWords.isNotEmpty) {
             _executeVoiceCommand(_lastWords);
+          }
+          
+          if (result.finalResult) {
+             // Logic if needed for final cleanup, currently handled by execute logic
           }
         },
         listenFor: const Duration(seconds: 30), // Listen longer
@@ -318,19 +316,28 @@ class AccessibilityService extends ChangeNotifier {
 
   /// Execute voice command - ACTUALLY CLICK THE BUTTON
   void _executeVoiceCommand(String words) {
+    // Debounce to prevent multiple executions for same phrase
+    if (_lastCommandTime != null && 
+        DateTime.now().difference(_lastCommandTime!) < const Duration(milliseconds: 1000)) {
+       return;
+    }
+    _lastCommandTime = DateTime.now();
+
     debugPrint('Trying to execute command from: "$words"');
     
     // Check each registered command
     for (final entry in _voiceCommandCallbacks.entries) {
       if (words.contains(entry.key)) {
         debugPrint('✅ EXECUTING: ${entry.key}');
+        
+        // Interrupt immediately!
+        stopSpeaking();
         vibrateSuccess();
         
         // Execute the callback!
         entry.value();
         
-        // Announce what was selected
-        speak(_getConfirmationMessage(entry.key));
+        // Removed generic speak() to avoid conflicts with callback feedback
         return;
       }
     }
@@ -576,6 +583,62 @@ class AccessibilityService extends ChangeNotifier {
     }
     notifyListeners();
     await savePreferences();
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // EXPORT PROFILE
+  // ═══════════════════════════════════════════════════════════
+
+  Map<String, dynamic> getProfileJson() {
+    return {
+      'isProfileComplete': true,
+      'completedAt': DateTime.now().toIso8601String(), // Will be converted to Timestamp by Firestore
+      'lastUpdated': DateTime.now().toIso8601String(),
+      
+      'visual': {
+        'needsCategory': _visualNeeds,
+        'textSize': (_textScale * 100).round(),
+        'fontWeight': _boldText ? 'bold' : 'normal',
+        'lineHeight': 1.5,
+        'letterSpacing': 0.0,
+        'contrastMode': _highContrast ? 'high_contrast' : 'standard',
+        'colorblindType': null,
+        'reduceTransparency': _highContrast,
+        'boldText': _boldText,
+        'largerIcons': _textScale > 1.2,
+        'screenReaderEnabled': _visualNeeds == 'blind', // Auto-enable for blind
+      },
+      
+      'audio': {
+        'needsCategory': _audioNeeds,
+        'notificationStyle': _audioNeeds == 'deaf' ? 'visual' : 'sound_visual',
+        'vibrationEnabled': _hapticFeedbackEnabled,
+        'vibrationStrength': 'medium',
+        'showCaptions': _audioNeeds == 'deaf' || _audioNeeds == 'hearing_loss',
+        'transcribeAudio': _audioNeeds == 'deaf',
+      },
+      
+      'motor': {
+        'needsCategory': _motorNeeds,
+        'buttonSize': _textScale > 1.2 ? 'large' : 'standard',
+        'touchHoldDuration': 500,
+        'simplifiedGestures': _motorNeeds == 'limited_dexterity',
+        'voiceControlEnabled': _voiceCommandsEnabled,
+      },
+      
+      'cognitive': {
+        'reduceMotion': false,
+        'simpleLanguage': false,
+        'focusHighlight': 'standard',
+      },
+      
+      'theme': {
+        'mode': 'system',
+        'customColors': null,
+      },
+      
+      'version': 1,
+    };
   }
 
   @override

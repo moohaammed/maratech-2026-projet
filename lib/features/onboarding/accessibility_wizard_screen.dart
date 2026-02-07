@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/accessibility_service.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Ensure this is here due to explicit usage
 
 /// Voice-First Accessibility Wizard with Language Selection
 /// 
@@ -82,20 +84,44 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     // Force TTS to speak
     await Future.delayed(const Duration(milliseconds: 500));
     
-    // Welcome in French, English, AND Arabic
+    // 1. Speak French
+    await _accessibility.setLanguage(AppLanguage.french);
     await _accessibility.speakWithHaptic(
-      "Bienvenue dans Running Club Tunis! "
-      "Dites Français, Arabe, ou Anglais. "
-      "Welcome! Say French, Arabic, or English. "
-      "مرحبا! قل فرنسي، عربي، أو إنجليزي."
+      "Bienvenue dans Running Club Tunis! Dites Français, Arabe, ou Anglais."
     );
+    await _accessibility.waitForSpeechComplete();
+
+    // 2. Speak Arabic (Switching language ensures it is spoken correctly)
+    await _accessibility.setLanguage(AppLanguage.arabic);
+    await _accessibility.speak(
+      "مرحبا! قل عربي، فرنسي، أو إنجليزي."
+    );
+    await _accessibility.waitForSpeechComplete();
+
+    // 3. Speak English
+    await _accessibility.setLanguage(AppLanguage.english);
+    await _accessibility.speak(
+      "Welcome! Say English, French, or Arabic."
+    );
+    await _accessibility.waitForSpeechComplete();
+    
+    // Reset to default (French) or keep English, but we should listen now.
+    // Let's set back to French as default fallback for listening if needed, 
+    // BUT listening actually uses the current language. 
+    // We should probably enable listening for multiple languages or just expect the user to reply in any.
+    // Since we can't easily listen in 3 languages at once with standard plugins, we might stick to one or rely on the fact that "Arabe" / "Arabic" sounds similar.
+    // However, for recognition to work well for "Arabe" (French word), we need French locale?
+    // actually _accessibility.startContinuousListening() uses _currentLanguage.ttsCode. 
+    
+    // Let's set it back to French as a baseline as it's the primary language of the region.
+    await _accessibility.setLanguage(AppLanguage.french);
     
     // Register language voice commands
     _registerLanguageCommands();
     
-    // Start listening only if voice mode is on
+    // Start listening immediately (Barge-in enabled)
     if (_useVoiceMode) {
-      await _accessibility.waitForSpeechComplete();
+      // Don't wait for speech to complete
       _accessibility.startContinuousListening();
     }
   }
@@ -103,23 +129,28 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   void _registerLanguageCommands() {
     _accessibility.clearVoiceCommands();
     
-    // French commands
+    // French commands (incl. phonetics)
     _accessibility.registerVoiceCommand('français', () => _selectLanguage(AppLanguage.french));
     _accessibility.registerVoiceCommand('french', () => _selectLanguage(AppLanguage.french));
     _accessibility.registerVoiceCommand('francais', () => _selectLanguage(AppLanguage.french));
-    
-    // Arabic commands - multiple variants for better recognition
+    _accessibility.registerVoiceCommand('france', () => _selectLanguage(AppLanguage.french));
+    _accessibility.registerVoiceCommand('fransi', () => _selectLanguage(AppLanguage.french));
+
+    // Arabic commands (incl. phonetics)
     _accessibility.registerVoiceCommand('arabe', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('arabic', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('arabia', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('arabi', () => _selectLanguage(AppLanguage.arabic));
+    _accessibility.registerVoiceCommand('arab', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('عربي', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('العربية', () => _selectLanguage(AppLanguage.arabic));
     _accessibility.registerVoiceCommand('عربية', () => _selectLanguage(AppLanguage.arabic));
     
-    // English commands
+    // English commands (incl. phonetics)
     _accessibility.registerVoiceCommand('anglais', () => _selectLanguage(AppLanguage.english));
     _accessibility.registerVoiceCommand('english', () => _selectLanguage(AppLanguage.english));
+    _accessibility.registerVoiceCommand('inglish', () => _selectLanguage(AppLanguage.english));
+    _accessibility.registerVoiceCommand('angle', () => _selectLanguage(AppLanguage.english));
     
     // Navigation
     _accessibility.registerVoiceCommand('continuer', _nextStep);
@@ -289,7 +320,9 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
         _highContrast = true;
         _boldText = true;
       } else if (needs == 'blind') {
-        _highContrast = true;
+        _highContrast = true; // Use simple high contrast for any UI remnants
+        // Enable full talkback simulation
+        _accessibility.setVoiceCommands(true); 
       }
     });
     _accessibility.setVisualNeeds(needs);
@@ -300,6 +333,13 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     setState(() => _audioNeeds = needs);
     _accessibility.setAudioNeeds(needs);
     _accessibility.vibrateSuccess();
+
+    if (needs == 'deaf') {
+      // Immediate Context Awareness: Deaf user can't hear us
+      _accessibility.stopSpeaking(); 
+      _accessibility.setVoiceCommands(false); // Can't speak commands if they can't hear prompts? Or maybe they can speak but prefer not to hear? 
+      // Usually defaults to visual only.
+    }
   }
 
   void _selectMotor(String needs) {
@@ -307,6 +347,9 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     _accessibility.setMotorNeeds(needs);
     _accessibility.vibrateSuccess();
     
+    // Context Awareness: If user *spoke* this command, they rely on voice.
+    // If they *tapped* this, they might not.
+    // However, if needs == 'limited_dexterity', assume voice needed.
     if (needs == 'limited_dexterity') {
       _accessibility.setVoiceCommands(true);
     }
@@ -332,7 +375,7 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   }
 
   void _announceStep() async {
-    await _accessibility.waitForSpeechComplete();
+    // interrupt previous speech is handled by speak() automatically
     
     switch (_currentStep) {
       case 0:
@@ -357,8 +400,7 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
         break;
     }
     
-    // Restart listening after speaking
-    await _accessibility.waitForSpeechComplete();
+    // Start listening immediately (Barge-in)
     _accessibility.startContinuousListening();
   }
 
@@ -400,6 +442,17 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   }
 
   Future<void> _finishOnboarding() async {
+    // Save deeply context-aware profile
+    final profile = _accessibility.getProfileJson();
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Save for Auth screen to pick up later
+    await prefs.setString('accessibility_profile_json', jsonEncode(profile));
+    await prefs.setBool('onboarding_wizard_completed', true);
+    
+    // Debug log
+    debugPrint('✅ Accessibility Profile Saved locally: ${jsonEncode(profile)}');
+    
     await _accessibility.savePreferences();
     
     String message;
@@ -453,75 +506,34 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(useHighContrast, textColor, ts),
-            
-            // Progress
-            if (_currentStep > 0)
-              _buildProgress(useHighContrast, ts),
-            
-            SizedBox(height: 16 * ts),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(24 * ts.clamp(1.0, 1.3)),
-                child: _buildCurrentStep(useHighContrast, textColor, ts),
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        centerTitle: true,
+        leading: _currentStep > 0
+            ? Semantics(
+                button: true,
+                label: _T('Retour', 'Back', 'رجوع'),
+                child: IconButton(
+                  onPressed: () {
+                    _onUserTouch();
+                    _previousStep();
+                  },
+                  icon: Icon(Icons.arrow_back, color: textColor),
+                ),
+              )
+            : null,
+        title: _currentStep == 0
+            ? null // No title on language step (logo is in body) vs Standard title?
+            : Text(
+                _T('Étape $_currentStep / 4', 'Step $_currentStep / 4', 'الخطوة $_currentStep / 4'),
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18 * ts,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-
-            // Listening indicator - ALWAYS VISIBLE
-            _buildListeningIndicator(useHighContrast, ts),
-
-            // Main button
-            Padding(
-              padding: EdgeInsets.all(24 * ts.clamp(1.0, 1.3)),
-              child: _buildMainButton(useHighContrast, ts),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(bool useHighContrast, Color textColor, double ts) {
-    return Padding(
-      padding: EdgeInsets.all(16 * ts.clamp(1.0, 1.3)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Back button
-          if (_currentStep > 0)
-            Semantics(
-              button: true,
-              label: _T('Retour', 'Back', 'رجوع'),
-              child: IconButton(
-                onPressed: () {
-                  _onUserTouch();
-                  _previousStep();
-                },
-                icon: Icon(Icons.arrow_back, color: textColor, size: 28 * ts.clamp(1.0, 1.3)),
-              ),
-            )
-          else
-            SizedBox(width: 48 * ts),
-          
-          // Step indicator - TRANSLATED
-          Text(
-            _currentStep == 0 
-              ? _T('🌍 Langue', '🌍 Language', '🌍 اللغة')
-              : _T('Étape $_currentStep / 4', 'Step $_currentStep / 4', 'الخطوة $_currentStep / 4'),
-            style: TextStyle(
-              fontSize: 16 * ts,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-          ),
-          
-          // Skip button - TRANSLATED
+        actions: [
           TextButton(
             onPressed: () {
               _onUserTouch();
@@ -532,13 +544,51 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
               style: TextStyle(
                 fontSize: 16 * ts,
                 color: useHighContrast ? Colors.white70 : AppColors.primary,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
+      ),
+      body: SafeArea(
+        top: false, // AppBar handles top
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              children: [
+                // Progress (moved out of SafeArea as AppBar handles top)
+                if (_currentStep > 0)
+                  _buildProgress(useHighContrast, ts),
+                
+                SizedBox(height: 16 * ts),
+      
+                // Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(24 * ts.clamp(1.0, 1.3)),
+                    child: _buildCurrentStep(useHighContrast, textColor, ts),
+                  ),
+                ),
+      
+                // Listening indicator - ALWAYS VISIBLE
+                _buildListeningIndicator(useHighContrast, ts),
+      
+                // Main button
+                Padding(
+                  padding: EdgeInsets.all(24 * ts.clamp(1.0, 1.3)),
+                  child: _buildMainButton(useHighContrast, ts),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
+
+
 
   Widget _buildProgress(bool useHighContrast, double ts) {
     return Padding(
@@ -556,64 +606,84 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
   }
 
   Widget _buildListeningIndicator(bool useHighContrast, double ts) {
-    // Don't show if voice mode is disabled
-    if (!_useVoiceMode) {
-      return const SizedBox.shrink();
-    }
-    
+    if (!_useVoiceMode) return const SizedBox.shrink();
+
     final isListening = _accessibility.isListening;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      padding: EdgeInsets.all(16 * ts.clamp(1.0, 1.2)),
-      decoration: BoxDecoration(
-        color: isListening 
-          ? Colors.red.withOpacity(0.2) 
-          : (useHighContrast ? Colors.grey[900] : Colors.grey[100]),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isListening ? Colors.red : Colors.grey,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isListening ? Icons.mic : Icons.mic_off,
-                color: isListening ? Colors.red : Colors.grey,
-                size: 24 * ts,
-              ),
-              SizedBox(width: 8 * ts),
-              Text(
-                isListening 
-                  ? _T('🎙️ J\'écoute...', '🎙️ Listening...', '🎙️ أستمع...')
-                  : _T('🔇 Pas d\'écoute', '🔇 Not listening', '🔇 لا أستمع'),
-                style: TextStyle(
-                  fontSize: 16 * ts,
-                  fontWeight: FontWeight.bold,
-                  color: isListening ? Colors.red : Colors.grey,
-                ),
-              ),
-            ],
-          ),
-          if (_recognizedText.isNotEmpty) ...[
-            SizedBox(height: 8 * ts),
-            Text(
+    return Column(
+      children: [
+        // Real-time Text Bubble (Floating)
+        if (_recognizedText.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: useHighContrast ? Colors.white : Colors.black87,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text(
               '"$_recognizedText"',
               style: TextStyle(
+                color: useHighContrast ? Colors.black : Colors.white,
                 fontSize: 18 * ts,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-                color: useHighContrast ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
             ),
-          ],
-        ],
-      ),
+          ),
+
+        // Minimalist Status Indicator
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isListening 
+                ? (useHighContrast ? Colors.white : AppColors.primary.withOpacity(0.1))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+            border: isListening 
+                ? Border.all(color: AppColors.primary.withOpacity(0.5)) 
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Pulsing Icon
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 1.0, end: isListening ? 1.2 : 1.0),
+                duration: const Duration(milliseconds: 500),
+                builder: (context, scale, child) {
+                  return Transform.scale(
+                    scale: scale,
+                    child: Icon(
+                      isListening ? Icons.mic : Icons.mic_none,
+                      color: isListening 
+                          ? (useHighContrast ? Colors.black : AppColors.primary) 
+                          : Colors.grey,
+                      size: 24 * ts,
+                    ),
+                  );
+                },
+                onEnd: () {
+                   // Loop animation manually if needed in a stateful widget, 
+                   // but simplified here for reliability.
+                },
+              ),
+              if (isListening) ...[
+                SizedBox(width: 8),
+                Text(
+                  _T('Je vous écoute...', 'I\'m listening...', 'أنا أستمع...'),
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14 * ts,
+                  ),
+                ),
+              ]
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -638,6 +708,8 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: useHighContrast ? Colors.white : AppColors.primary,
           foregroundColor: useHighContrast ? Colors.black : Colors.white,
+          elevation: 8,
+          shadowColor: AppColors.primary.withOpacity(0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
@@ -676,55 +748,90 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
 
   Widget _buildLanguageStep(bool useHighContrast, Color textColor, double ts) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(
-          Icons.language,
-          size: 80 * ts.clamp(1.0, 1.3),
-          color: useHighContrast ? Colors.white : AppColors.primary,
-        ),
-        SizedBox(height: 24 * ts),
-        Text(
-          _T('🌍 Choisissez votre langue', '🌍 Choose your language', '🌍 اختر لغتك'),
-          style: TextStyle(
-            fontSize: 28 * ts,
-            fontWeight: FontWeight.bold,
-            color: textColor,
+        // Standard App Header with Logo
+        Center(
+          child: Column(
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/logo.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_,__,___) => const Icon(Icons.language, size: 50, color: AppColors.primary),
+                  ),
+                ),
+              ),
+              SizedBox(height: 16 * ts),
+              Text(
+                _T('Choisissez votre langue', 'Choose your language', 'اختر لغتك'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 8 * ts),
-        Text(
-          _T(
-            'Dites le nom de la langue ou appuyez',
-            'Say the language name or tap',
-            'قل اسم اللغة أو انقر',
-          ),
-          style: TextStyle(
-            fontSize: 16 * ts,
-            color: textColor.withOpacity(0.7),
-          ),
-          textAlign: TextAlign.center,
         ),
         SizedBox(height: 32 * ts),
 
-        // Language options - LARGE BUTTONS
-        for (final lang in AppLanguage.all) ...[
-          _buildLanguageButton(lang, useHighContrast, textColor, ts),
-          SizedBox(height: 16 * ts),
-        ],
-        
+        // Standard Material Cards
+        for (final lang in AppLanguage.all)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: _selectedLanguage.code == lang.code ? 4 : 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: _selectedLanguage.code == lang.code 
+                  ? BorderSide(color: AppColors.primary, width: 2)
+                  : BorderSide.none,
+            ),
+            child: InkWell(
+              onTap: () {
+                 _onUserTouch();
+                 _selectLanguage(lang);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Text(
+                  lang.flag,
+                  style: const TextStyle(fontSize: 32),
+                ),
+                title: Text(
+                  lang.nativeName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18 * ts,
+                    color: _selectedLanguage.code == lang.code ? AppColors.primary : textColor,
+                  ),
+                ),
+                subtitle: Text(lang.name),
+                trailing: _selectedLanguage.code == lang.code 
+                    ? const Icon(Icons.check_circle, color: AppColors.primary)
+                    : null,
+              ),
+            ),
+          ),
+
         SizedBox(height: 16 * ts),
         Text(
           _T(
-            '🎤 Dites "Français", "Arabe" ou "Anglais"',
-            '🎤 Say "French", "Arabic" or "English"',
-            '🎤 قل "فرنسي" أو "عربي" أو "إنجليزي"',
+            'Ou dites simplement le nom de la langue',
+            'Or just say the language name',
+            'أو قل اسم اللغة ببساطة',
           ),
-          style: TextStyle(
-            fontSize: 14 * ts,
-            color: textColor.withOpacity(0.6),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontStyle: FontStyle.italic,
+            color: Colors.grey[600],
           ),
           textAlign: TextAlign.center,
         ),
@@ -732,80 +839,10 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     );
   }
 
+  // _buildLanguageButton is processed inline above now for better context
   Widget _buildLanguageButton(AppLanguage lang, bool useHighContrast, Color textColor, double ts) {
-    final isSelected = _selectedLanguage.code == lang.code;
-    
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: '${lang.nativeName}. ${lang.name}',
-      child: InkWell(
-        onTap: () {
-          _onUserTouch(); // Disable voice mode when user touches
-          _selectLanguage(lang);
-          _accessibility.vibrateTap();
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(vertical: 24 * ts.clamp(1.0, 1.2), horizontal: 20),
-          decoration: BoxDecoration(
-            color: isSelected 
-              ? (useHighContrast ? Colors.blue.withOpacity(0.3) : AppColors.primary.withOpacity(0.15))
-              : (useHighContrast ? Colors.grey[900] : Colors.white),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected 
-                ? (useHighContrast ? Colors.white : AppColors.primary)
-                : (useHighContrast ? Colors.grey[700]! : Colors.grey[300]!),
-              width: isSelected ? 4 : 2,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                lang.flag,
-                style: TextStyle(fontSize: 36 * ts.clamp(1.0, 1.3)),
-              ),
-              SizedBox(width: 16 * ts),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    lang.nativeName,
-                    style: TextStyle(
-                      fontSize: 24 * ts,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected 
-                        ? (useHighContrast ? Colors.white : AppColors.primary)
-                        : textColor,
-                    ),
-                  ),
-                  Text(
-                    lang.name,
-                    style: TextStyle(
-                      fontSize: 14 * ts,
-                      color: textColor.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: useHighContrast ? Colors.white : AppColors.primary,
-                  size: 32 * ts.clamp(1.0, 1.3),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVisionStep(bool useHighContrast, Color textColor, double ts) {
+    return const SizedBox.shrink(); // Deprecated
+  }Widget _buildVisionStep(bool useHighContrast, Color textColor, double ts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

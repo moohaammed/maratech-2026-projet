@@ -45,255 +45,258 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Access dynamic theme data (High Contrast / Text Scale integrated)
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Running Club'),
+        centerTitle: true,
+        backgroundColor: colorScheme.surface, // Or primary depending on theme
+        elevation: 0,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-
-              // Logo
-              Center(
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.directions_run,
-                    size: 50,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Title
-              Semantics(
-                header: true,
-                child: const Center(
-                  child: Text(
-                    'Connexion',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'Running Club Tunis',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 48),
-
-              // Form
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Name Field
-                    const Text(
-                      'Nom complet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _nameController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: InputDecoration(
-                        hintText: 'Entrez votre nom',
-                        prefixIcon: const Icon(Icons.person_outline),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.primary,
-                            width: 2,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Logo
+                      Center(
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.primary.withOpacity(0.2),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/logo.jpg',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: colorScheme.primaryContainer,
+                                  child: Icon(
+                                    Icons.directions_run,
+                                    size: 60,
+                                    color: colorScheme.primary,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Veuillez entrer votre nom';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 32),
 
-                    // PIN Field
-                    const Text(
-                      'Code PIN (3 derniers chiffres CIN)',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                      // Title
+                      Text(
+                        'Connexion',
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _pinController,
-                      keyboardType: TextInputType.number,
-                      obscureText: _obscurePin,
-                      maxLength: 3,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        hintText: '• • •',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePin ? Icons.visibility_off : Icons.visibility,
-                          ),
-                          onPressed: () {
-                            setState(() => _obscurePin = !_obscurePin);
-                          },
+                      const SizedBox(height: 8),
+                      Text(
+                        'Accédez à votre espace',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface.withOpacity(0.7),
                         ),
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.primary,
-                            width: 2,
-                          ),
-                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Veuillez entrer votre PIN';
-                        }
-                        if (value.length != 3) {
-                          return 'Le PIN doit contenir 3 chiffres';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
+                      const SizedBox(height: 48),
 
-                    // Login Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
+                      // Form
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Name Field
+                            Text(
+                              'Nom complet',
+                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _nameController,
+                              textCapitalization: TextCapitalization.words,
+                              style: textTheme.bodyMedium,
+                              decoration: InputDecoration(
+                                hintText: 'Entrez votre nom',
+                                prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
+                                filled: true,
+                                fillColor: colorScheme.surfaceVariant.withOpacity(0.3), // Dynamic surface
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
                                 ),
-                              )
-                            : const Text(
-                                'Se connecter',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
                                 ),
                               ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer votre nom';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
 
-                    // Divider
-                    Row(
-                      children: [
-                        Expanded(child: Divider(color: Colors.grey[300])),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'ou',
-                            style: TextStyle(color: Colors.grey[600]),
+                            // PIN Field
+                            Text(
+                              'Code PIN (3 derniers chiffres CIN)',
+                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _pinController,
+                              keyboardType: TextInputType.number,
+                              obscureText: _obscurePin,
+                              maxLength: 3,
+                              style: textTheme.bodyMedium,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: InputDecoration(
+                                hintText: '• • •',
+                                prefixIcon: Icon(Icons.lock_outline, color: colorScheme.primary),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePin ? Icons.visibility_off : Icons.visibility,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  onPressed: () {
+                                    setState(() => _obscurePin = !_obscurePin);
+                                  },
+                                ),
+                                counterText: '',
+                                filled: true,
+                                fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer votre PIN';
+                                }
+                                if (value.length != 3) {
+                                  return 'Le PIN doit contenir 3 chiffres';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 32),
+
+                            // Login Button
+                            // Theme handles button size based on motor needs!
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                // Style is largely handled by Theme, but we can override specific shapes
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: _isLoading
+                                    ? SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          color: colorScheme.onPrimary,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Se connecter'),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Visitor (Secondary Action)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56, // Ensure hit target
+                              child: OutlinedButton.icon(
+                                onPressed: _continueAsVisitor,
+                                icon: const Icon(Icons.visibility),
+                                label: const Text('Continuer en tant que visiteur'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: colorScheme.primary,
+                                  side: BorderSide(color: colorScheme.primary),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  textStyle: TextStyle(
+                                    fontSize: 16 * (theme.textTheme.bodyMedium?.fontSize ?? 16) / 16, // Relative scale
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Info Box
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.info.withOpacity(0.3),
                           ),
                         ),
-                        Expanded(child: Divider(color: Colors.grey[300])),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Visitor Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: OutlinedButton.icon(
-                        onPressed: _continueAsVisitor,
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('Continuer en tant que visiteur'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: const BorderSide(color: AppColors.primary),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: AppColors.info),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Votre compte est créé par un administrateur. Contactez RCT si vous n\'avez pas de compte.',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurface.withOpacity(0.8),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Info Box
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.info.withOpacity(0.3),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: AppColors.info),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Votre compte est créé par un administrateur. Contactez RCT si vous n\'avez pas de compte.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Splash Screen - First screen users see with images carousel
@@ -68,21 +69,25 @@ class _SplashScreenState extends State<SplashScreen>
     await _tts.setLanguage('fr-FR');
     await _tts.setSpeechRate(0.5);
     
-    // Check if screen reader is active
+    // Check completion status
+    final prefs = await SharedPreferences.getInstance();
+    final isWizardComplete = prefs.getBool('onboarding_wizard_completed') ?? false;
+    
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Speak welcome for blind users IF not already completed (or just welcome anyway)
       final isScreenReaderActive = MediaQuery.of(context).accessibleNavigation;
-      
       if (isScreenReaderActive) {
-        // Speak welcome for blind users
-        await _tts.speak(
-          "Running Club Tunis. Bienvenue! Welcome! مرحبا!"
-        );
+        await _tts.speak("Running Club Tunis. Bienvenue! Welcome! مرحبا!");
       }
       
-      // Navigate after showing all images (about 4.5 seconds total)
+      // Navigate after showing all images
       await Future.delayed(const Duration(milliseconds: 4500));
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/accessibility-wizard');
+        if (isWizardComplete) {
+            Navigator.pushReplacementNamed(context, '/login');
+        } else {
+            Navigator.pushReplacementNamed(context, '/accessibility-wizard');
+        }
       }
     });
   }
@@ -163,11 +168,21 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ],
                       ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.directions_run,
-                          size: 60,
-                          color: AppColors.primary,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/logo.jpg',
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Icon(
+                                Icons.directions_run,
+                                size: 60,
+                                color: AppColors.primary,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
