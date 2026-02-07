@@ -146,11 +146,25 @@ class AccessibilityProvider with ChangeNotifier {
     }
   }
 
-  // 🧹 CLEAR PROFILE (Logout)
-  Future<void> clearLocalProfile() async {
+  // 🔄 LOGOUT & RESTORE (Revert to Wizard/Local settings)
+  Future<void> logoutAndRestoreLocalProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('accessibility_profile_json');
-    _profile = AccessibilityProfile(userId: 'guest'); // Reset to default
+    final localJson = prefs.getString('accessibility_profile_json');
+    
+    if (localJson != null) {
+      try {
+        final Map<String, dynamic> data = jsonDecode(localJson);
+        // Restore local settings as guest
+        _profile = AccessibilityProfile.fromMap(data, 'guest');
+        debugPrint("✅ Restored Wizard Profile after logout");
+      } catch (e) {
+        debugPrint("⚠️ Error restoring local profile: $e");
+         _profile = AccessibilityProfile(userId: 'guest');
+      }
+    } else {
+        // No local wizard data -> Default
+        _profile = AccessibilityProfile(userId: 'guest');
+    }
     notifyListeners();
   }
 }

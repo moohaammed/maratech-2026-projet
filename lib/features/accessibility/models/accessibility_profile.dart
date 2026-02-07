@@ -74,6 +74,7 @@ class AccessibilityProfile {
   // Convert to Map for Firebase
   Map<String, dynamic> toMap() {
     return {
+      'userId': userId,
       'visual': {
         'needsCategory': visualNeeds,
         'textSize': (textSize * 100).toInt(),
