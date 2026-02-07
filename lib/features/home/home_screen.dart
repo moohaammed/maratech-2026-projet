@@ -2,11 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../accessibility/providers/accessibility_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/ai_coach_widget.dart';
+
+// Translation Helper
+String _T(BuildContext context, String fr, String en, String ar) {
+  final lang = Provider.of<AccessibilityProvider>(context).languageCode;
+  if (lang == 'ar') return ar;
+  if (lang == 'en') return en;
+  return fr;
+}
 
 /// Home Screen - Main dashboard for Adhérant (Regular Member)
 class HomeScreen extends StatefulWidget {
@@ -60,10 +69,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _speak(String text) async {
-    // Unrestricted speech for manual interactions
-    await _tts.setVolume(1.0);
-    await _tts.stop();
-    await _tts.speak(text);
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    // Only speak if user has visual impairments or dyslexia
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
+      await _tts.setVolume(1.0);
+      await _tts.stop();
+      await _tts.speak(text);
+    }
   }
 
   @override
@@ -126,38 +138,43 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
             setState(() => _currentIndex = index);
-            final labels = ['Accueil', 'Événements', 'Le Club', 'Profil'];
-            _speak("Onglet ${labels[index]} sélectionné");
+            final labels = [
+              _T(context, 'Accueil', 'Home', 'الرئيسية'),
+              _T(context, 'Événements', 'Events', 'الأحداث'),
+              _T(context, 'Le Club', 'Club', 'النادي'),
+              _T(context, 'Profil', 'Profile', 'الملف الشخصي')
+            ];
+            _speak("${_T(context, 'Onglet', 'Tab', 'علامة')} ${labels[index]} ${_T(context, 'sélectionné', 'selected', 'محدد')}");
           },
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           elevation: highContrast ? 0 : 3,
           shadowColor: Colors.black26, 
           // SurfaceTintColor applied by theme usually, helpful to ensure explicit color
           surfaceTintColor: navBarColor, 
-          destinations: const [
+          destinations: [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home_rounded),
-              label: 'Accueil',
-              tooltip: 'Accueil',
+              label: _T(context, 'Accueil', 'Home', 'الرئيسية'),
+              tooltip: _T(context, 'Accueil', 'Home', 'الرئيسية'),
             ),
             NavigationDestination(
               icon: Icon(Icons.calendar_today_outlined),
               selectedIcon: Icon(Icons.calendar_today_rounded),
-              label: 'Événements',
-              tooltip: 'Événements',
+              label: _T(context, 'Événements', 'Events', 'الأحداث'),
+              tooltip: _T(context, 'Événements', 'Events', 'الأحداث'),
             ),
             NavigationDestination(
               icon: Icon(Icons.groups_outlined),
               selectedIcon: Icon(Icons.groups_rounded),
-              label: 'Le Club',
-              tooltip: 'Le Club',
+              label: _T(context, 'Le Club', 'Club', 'النادي'),
+              tooltip: _T(context, 'Le Club', 'Club', 'النادي'),
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person_rounded),
-              label: 'Profil',
-              tooltip: 'Profil',
+              label: _T(context, 'Profil', 'Profile', 'الملف الشخصي'),
+              tooltip: _T(context, 'Profil', 'Profile', 'الملف الشخصي'),
             ),
           ],
         ),
@@ -241,10 +258,13 @@ class _HomeTabState extends State<_HomeTab> {
 
   Future<void> _speak(String text) async {
     if (!mounted) return;
-    // Unrestricted speech for user interactions
-    await _tts.setVolume(1.0);
-    await _tts.stop();
-    await _tts.speak(text);
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    // Only speak if user has visual impairments or dyslexia
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
+      await _tts.setVolume(1.0);
+      await _tts.stop();
+      await _tts.speak(text);
+    }
   }
 
   Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
@@ -381,7 +401,7 @@ class _HomeTabState extends State<_HomeTab> {
         foregroundColor: highContrast ? primaryColor : Colors.white,
         elevation: highContrast ? 0 : 2,
         title: InkWell(
-          onTap: () => _speak("RCT. Appuyez pour écouter."),
+          onTap: () => _speak(_T(context, "RCT. Appuyez pour écouter.", "RCT. Tap to listen.", "RCT. اضغط للاستماع.")),
           child: Row(
             children: [
               Image.asset(
@@ -529,7 +549,7 @@ class _HomeTabState extends State<_HomeTab> {
                             // Today's Run Section
                             _buildSectionHeader(
                               icon: '🏃',
-                              title: "Course d'aujourd'hui",
+                              title: _T(context, "Course d'aujourd'hui", "Today's Run", "ركض اليوم"),
                               textScale: textScale,
                               textColor: textColor,
                               boldText: boldText,
@@ -546,7 +566,7 @@ class _HomeTabState extends State<_HomeTab> {
                                   padding: const EdgeInsets.only(bottom: 16.0),
                                   child: _buildTodayEventCard(
                                     eventId: doc.id,
-                                    title: data['title'] ?? 'Entraînement',
+                                    title: data['title'] ?? _T(context, 'Entraînement', 'Training', 'تدريب'),
                                     time: timeStr,
                                     location: data['location'] ?? 'Stade',
                                     distance: data['distance'] ?? 'Unknown',
@@ -572,7 +592,7 @@ class _HomeTabState extends State<_HomeTab> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  "Pas d'événement prévu aujourd'hui. Repos! 😴",
+                                  _T(context, "Pas d'événement prévu aujourd'hui. Repos! 😴", "No events scheduled today. Rest! 😴", "لا توجد أحداث اليوم. استرح! 😴"),
                                   style: TextStyle(
                                     fontSize: 16 * textScale,
                                     color: secondaryTextColor,
@@ -586,7 +606,7 @@ class _HomeTabState extends State<_HomeTab> {
                             // Quick Actions (Keep static for now as requested or make dynamic later)
                              _buildSectionHeader(
                               icon: '⚡',
-                              title: 'Actions rapides',
+                              title: _T(context, 'Actions rapides', 'Quick Actions', 'إجراءات سريعة'),
                               textScale: textScale,
                               textColor: textColor,
                               boldText: boldText,
@@ -596,14 +616,14 @@ class _HomeTabState extends State<_HomeTab> {
                               textScale: textScale,
                               highContrast: highContrast,
                               boldText: boldText,
-                            ),
+                              ),
                             
                             SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
                             // Upcoming Events
                             _buildSectionHeader(
                               icon: '📅',
-                              title: 'Événements à venir',
+                              title: _T(context, 'Événements à venir', 'Upcoming Events', 'الأحداث القادمة'),
                               textScale: textScale,
                               textColor: textColor,
                               boldText: boldText,
@@ -613,19 +633,19 @@ class _HomeTabState extends State<_HomeTab> {
                             if (upcomingEvents.isNotEmpty) ...upcomingEvents.map((doc) {
                                 final data = doc.data() as Map<String, dynamic>;
                                 final date = (data['date'] as Timestamp).toDate();
-                                final dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                                final dayNames = [_T(context, 'Lun', 'Mon', 'إثنين'), _T(context, 'Mar', 'Tue', 'ثلاثاء'), _T(context, 'Mer', 'Wed', 'أربعاء'), _T(context, 'Jeu', 'Thu', 'خميس'), _T(context, 'Ven', 'Fri', 'جمعة'), _T(context, 'Sam', 'Sat', 'سبت'), _T(context, 'Dim', 'Sun', 'أحد')];
                                 final dayStr = "${dayNames[date.weekday - 1]} ${date.day}/${date.month}";
                                 final timeStr = "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
                                 
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12.0),
                                   child: _buildUpcomingEventCard(
-                                    title: data['title'] ?? 'Entraînement',
+                                    title: data['title'] ?? _T(context, 'Entraînement', 'Training', 'تدريب'),
                                     date: dayStr,
                                     time: timeStr,
-                                    location: data['location'] ?? 'Stade',
+                                    location: data['location'] ?? _T(context, 'Stade', 'Stadium', 'ملعب'),
                                     distance: data['distance'] ?? '',
-                                    group: data['group'] ?? 'Tous',
+                                    group: data['group'] ?? _T(context, 'Tous', 'All', 'الجميع'),
                                     groupColor: AppColors.primary,
                                     textScale: textScale,
                                     highContrast: highContrast,
@@ -924,7 +944,7 @@ class _HomeTabState extends State<_HomeTab> {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
-             final speakText = "Course d'aujourd'hui : $title à $time. $location. $distance. $participantCount inscrits.";
+             final speakText = "${_T(context, "Course d'aujourd'hui", "Today's run", "ركض اليوم")} : $title ${_T(context, "à", "at", "في")} $time. $location. $distance. $participantCount ${_T(context, 'inscrits', 'registered', 'مشترك')}.";
              _speak(speakText);
             // TODO: Navigate to event details
           },
@@ -1040,7 +1060,7 @@ class _HomeTabState extends State<_HomeTab> {
                 SizedBox(height: 6 * textScale.clamp(1.0, 1.2)),
                 _buildEventDetail(
                   icon: Icons.people_outline,
-                  text: '$participantCount inscrits',
+                  text: '$participantCount ${_T(context, 'inscrits', 'registered', 'مشترك')}',
                   textScale: textScale,
                   color: secondaryTextColor,
                 ),
@@ -1060,7 +1080,7 @@ class _HomeTabState extends State<_HomeTab> {
                               Icon(isRegistered ? Icons.cancel : Icons.check_circle, color: Colors.white),
                               SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
                               Text(
-                                isRegistered ? 'Désinscription confirmée' : 'Inscription confirmée!',
+                                isRegistered ? _T(context, 'Désinscription confirmée', 'Unregistration confirmed', 'تم إلغاء التسجيل') : _T(context, 'Inscription confirmée!', 'Registration confirmed!', 'تم التسجيل بنجاح!'),
                                 style: TextStyle(fontSize: 14 * textScale),
                               ),
                             ],
@@ -1075,12 +1095,12 @@ class _HomeTabState extends State<_HomeTab> {
                         isRegistered ? Icons.cancel_outlined : Icons.check_circle_outline, 
                         size: 20 * textScale.clamp(1.0, 1.2)
                     ),
-                    label: Text(
-                      isRegistered ? "SE DÉSINSCRIRE" : "JE PARTICIPE",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15 * textScale,
-                        letterSpacing: 0.5,
+                      label: Text(
+                        isRegistered ? _T(context, "SE DÉSINSCRIRE", "UNREGISTER", "إلغاء التسجيل") : _T(context, "JE PARTICIPE", "JOIN", "سأشارك"),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15 * textScale,
+                          letterSpacing: 0.5,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -1137,7 +1157,7 @@ class _HomeTabState extends State<_HomeTab> {
         Expanded(
           child: _buildQuickAction(
             icon: Icons.event,
-            label: 'Événements',
+            label: _T(context, 'Événements', 'Events', 'أحداث'),
             color: highContrast ? AppColors.highContrastPrimary : AppColors.primary,
             textScale: textScale,
             highContrast: highContrast,
@@ -1148,7 +1168,7 @@ class _HomeTabState extends State<_HomeTab> {
         Expanded(
           child: _buildQuickAction(
             icon: Icons.history,
-            label: 'Historique',
+            label: _T(context, 'Historique', 'History', 'تاريخ'),
             color: highContrast ? Colors.cyan : AppColors.success,
             textScale: textScale,
             highContrast: highContrast,
@@ -1159,7 +1179,7 @@ class _HomeTabState extends State<_HomeTab> {
         Expanded(
           child: _buildQuickAction(
             icon: Icons.campaign,
-            label: 'Annonces',
+            label: _T(context, 'Annonces', 'Announcements', 'إعلانات'),
             color: highContrast ? Colors.yellow : AppColors.warning,
             textScale: textScale,
             highContrast: highContrast,
@@ -1256,7 +1276,7 @@ class _HomeTabState extends State<_HomeTab> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-             final speakText = "Événement à venir : $title le $date à $time. $location. $distance. Groupe $group.";
+             final speakText = "${_T(context, 'Événement à venir', 'Upcoming event', 'حدث قادم')} : $title ${_T(context, 'le', 'on', 'يوم')} $date ${_T(context, 'à', 'at', 'الساعة')} $time. $location. $distance. ${_T(context, 'Groupe', 'Group', 'مجموعة')} $group.";
             _speak(speakText);
             // TODO: Navigate to event details
           },
@@ -1482,30 +1502,167 @@ class _EventsTabState extends State<_EventsTab> {
             );
           }
 
-          return ListView.builder(
-            padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
-            itemCount: events.length,
-            itemBuilder: (context, index) {
-              final doc = events[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final date = (data['date'] as Timestamp).toDate();
-              final participants = List<String>.from(data['participants'] ?? []);
-              final String eventId = doc.id;
-              
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: _buildEventCard(
-                  eventId: eventId,
-                  data: data,
-                  date: date,
-                  participants: participants,
-                  textScale: textScale,
-                  highContrast: highContrast,
-                  primaryColor: primaryColor,
-                  textColor: textColor,
+          // Build markers from events
+          final Set<Marker> markers = {};
+          LatLng? initialPosition;
+          
+          for (var doc in events) {
+            final data = doc.data() as Map<String, dynamic>;
+            final meetingPoint = data['meetingPoint'] as Map<String, dynamic>?;
+            
+            if (meetingPoint != null) {
+              final coordinates = meetingPoint['coordinates'] as Map<String, dynamic>?;
+              if (coordinates != null) {
+                final lat = (coordinates['latitude'] as num?)?.toDouble();
+                final lng = (coordinates['longitude'] as num?)?.toDouble();
+                
+                if (lat != null && lng != null) {
+                  final position = LatLng(lat, lng);
+                  initialPosition ??= position;
+                  
+                  markers.add(
+                    Marker(
+                      markerId: MarkerId(doc.id),
+                      position: position,
+                      infoWindow: InfoWindow(
+                        title: data['title'] ?? 'Événement',
+                        snippet: meetingPoint['address'] ?? '',
+                      ),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueRed,
+                      ),
+                    ),
+                  );
+                }
+              }
+            }
+          }
+
+          return Column(
+            children: [
+              // Map Section
+              if (markers.isNotEmpty && initialPosition != null)
+                Container(
+                  height: 220,
+                  margin: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: highContrast ? Colors.white : Colors.grey.shade300,
+                      width: 2,
+                    ),
+                    boxShadow: highContrast ? null : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: initialPosition,
+                        zoom: 12,
+                      ),
+                      markers: markers,
+                      mapType: MapType.normal,
+                      zoomControlsEnabled: false,
+                      myLocationButtonEnabled: false,
+                      liteModeEnabled: true, // Use lite mode for better performance in list
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: 120,
+                  margin: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
+                  decoration: BoxDecoration(
+                    color: highContrast ? AppColors.highContrastSurface : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: highContrast ? Colors.white54 : Colors.grey.shade300),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map_outlined, size: 40, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text(
+                          'Aucune localisation disponible',
+                          style: TextStyle(color: Colors.grey, fontSize: 14 * textScale),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              );
-            },
+              
+              // Section Header
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16 * textScale.clamp(1.0, 1.2)),
+                child: Row(
+                  children: [
+                    Icon(Icons.event, color: primaryColor, size: 24 * textScale),
+                    SizedBox(width: 8),
+                    Text(
+                      'Prochains événements',
+                      style: TextStyle(
+                        fontSize: 18 * textScale,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${events.length}',
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14 * textScale,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 8),
+              
+              // Events List
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: 16 * textScale.clamp(1.0, 1.2)),
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    final doc = events[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final date = (data['date'] as Timestamp).toDate();
+                    final participants = List<String>.from(data['participants'] ?? []);
+                    final String eventId = doc.id;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildEventCard(
+                        eventId: eventId,
+                        data: data,
+                        date: date,
+                        participants: participants,
+                        textScale: textScale,
+                        highContrast: highContrast,
+                        primaryColor: primaryColor,
+                        textColor: textColor,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -2021,7 +2178,7 @@ class _ProfileTab extends StatelessWidget {
                 if (context.mounted) {
                   await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
                   if (context.mounted) {
-                    Navigator.pushReplacementNamed(context, '/login');
+                    Navigator.pushReplacementNamed(context, '/');
                   }
                 }
               },

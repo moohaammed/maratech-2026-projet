@@ -145,7 +145,7 @@ class _EventListScreenState extends State<EventListScreen> {
           if (widget.canCreate)
             IconButton(
               icon: const Icon(Icons.logout),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+              onPressed: () => Navigator.pushReplacementNamed(context, '/'),
               tooltip: _T('Déconnexion', 'Logout', 'تسجيل الخروج'),
             ),
         ],

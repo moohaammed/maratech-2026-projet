@@ -202,34 +202,35 @@ class _SplashScreenState extends State<SplashScreen>
                     
                     // Logo
                     Container(
-                      width: 120,
-                      height: 120,
+                      width: 90,
+                      height: 90,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.primary.withOpacity(0.5),
-                            blurRadius: 30,
-                            spreadRadius: 5,
+                            blurRadius: 20,
+                            spreadRadius: 3,
                           ),
                         ],
                       ),
                       child: ClipOval(
-                        child: Image.asset(
-                          'assets/logo.jpg',
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
-                              child: Icon(
-                                Icons.directions_run,
-                                size: 60,
-                                color: AppColors.primary,
-                              ),
-                            );
-                          },
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Image.asset(
+                            'assets/logo.jpg',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Icon(
+                                  Icons.directions_run,
+                                  size: 40,
+                                  color: AppColors.primary,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -237,7 +238,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                     // App Name
                     const Text(
-                      'RCT',
+                      'Running Club Tunis',
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.bold,
@@ -253,7 +254,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const Text(
-                      'RCT',
+                      'Running Club Tunis',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w300,

@@ -360,6 +360,7 @@ class AccessibilityService extends ChangeNotifier {
       _voiceCommandCallbacks['continuer']?.call();
       _voiceCommandCallbacks['continue']?.call();
       _voiceCommandCallbacks['متابعة']?.call();
+      _voiceCommandCallbacks['متابعه']?.call();
     }
   }
 
@@ -381,7 +382,8 @@ class AccessibilityService extends ChangeNotifier {
            words.contains('suivant') ||
            words.contains('continue') ||
            words.contains('next') ||
-           words.contains('متابعة');
+           words.contains('متابعة') ||
+           words.contains('متابعه');
   }
 
   String _getConfirmationMessage(String command) {

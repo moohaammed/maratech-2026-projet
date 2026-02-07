@@ -270,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         
           bool isGuest = words.contains('invité') || words.contains('guest') || 
                         words.contains('visiteur') || words.contains('visite') ||
-                        words.contains('ضيف') || words.contains('متابعة');
+                        words.contains('ضيف') || words.contains('متابعة') || words.contains('متابعه'); 
 
           if (isLogin || isGuest) {
             debugPrint("🎤 Command Detected: '$words'");
@@ -776,7 +776,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
-            'RCT',
+            'Running Club Tunis',
             style: TextStyle(
               fontSize: (isSmall ? 24 : 28) * textScale,
               fontWeight: FontWeight.bold,

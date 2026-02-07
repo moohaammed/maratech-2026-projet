@@ -159,6 +159,7 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     _accessibility.registerVoiceCommand('continuer', _nextStep);
     _accessibility.registerVoiceCommand('continue', _nextStep);
     _accessibility.registerVoiceCommand('متابعة', _nextStep);
+    _accessibility.registerVoiceCommand('متابعه', _nextStep);
     _accessibility.registerVoiceCommand('suivant', _nextStep);
     _accessibility.registerVoiceCommand('next', _nextStep);
   }
@@ -507,7 +508,11 @@ class _AccessibilityWizardScreenState extends State<AccessibilityWizardScreen> {
     setState(() => _currentStep = 4);
   }
 
-  void _skipToLogin() {
+  Future<void> _skipToLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_wizard_completed', true);
+
+    if (!mounted) return;
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final target = args?['target'] as String? ?? '/login';
     _accessibility.speak(_selectedLanguage.code == 'en' ? "Skipping." : "Passage.");

@@ -33,7 +33,7 @@ class CoachDashboardScreen extends StatelessWidget {
             ),
             child: IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+              onPressed: () => Navigator.pushReplacementNamed(context, '/'),
               tooltip: 'Déconnexion',
             ),
           ),

@@ -88,7 +88,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
               Text('Erreur: Utilisateur non trouvé', style: TextStyle(color: textColor, fontSize: 16 * textScale)),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                onPressed: () => Navigator.pushReplacementNamed(context, '/'),
                 child: const Text('Retour Connexion'),
               )
             ],
@@ -139,7 +139,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
               if (mounted) {
                 await Provider.of<AccessibilityProvider>(context, listen: false).logoutAndRestoreLocalProfile();
                 if (mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
+                  Navigator.pushReplacementNamed(context, '/');
                 }
               }
             },

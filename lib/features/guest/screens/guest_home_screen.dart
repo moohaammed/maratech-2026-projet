@@ -155,7 +155,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
         actions: [
           IconButton(
             icon: const Icon(Icons.login),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+            onPressed: () => Navigator.pushReplacementNamed(context, '/'),
             tooltip: _T('Se connecter', 'Login', 'تسجيل الدخول'),
           ),
         ],
