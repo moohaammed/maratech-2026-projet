@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AccessibilityProfile {
   final String userId;
-  final String languageCode; // 'fr', 'ar', 'en'
 
   // Visual
   final String visualNeeds; // 'normal', 'low_vision', 'blind', 'colorblind'
@@ -20,10 +19,12 @@ class AccessibilityProfile {
   final bool simplifiedGestures; // No complex swipes
   final double touchDuration; // For "long press" adjustments
 
+  // Language
+  final String languageCode; // 'fr', 'ar', 'en'
+
   // Constructor with defaults (WCAG Standard)
   AccessibilityProfile({
     required this.userId,
-    this.languageCode = 'fr',
     this.visualNeeds = 'normal',
     this.textSize = 1.0,
     this.highContrast = false,
@@ -34,6 +35,7 @@ class AccessibilityProfile {
     this.motorNeeds = 'normal',
     this.simplifiedGestures = false,
     this.touchDuration = 0.5,
+    this.languageCode = 'fr',
   });
 
   // Factory to create from Firebase
@@ -58,7 +60,6 @@ class AccessibilityProfile {
     
     return AccessibilityProfile(
       userId: id,
-      languageCode: data['languageCode'] ?? 'fr',
       visualNeeds: visual['needsCategory'] ?? 'normal',
       textSize: textSize,
       highContrast: isHighContrast,
@@ -71,6 +72,7 @@ class AccessibilityProfile {
       motorNeeds: motor['needsCategory'] ?? 'normal',
       simplifiedGestures: motor['simplifiedGestures'] ?? false,
       touchDuration: (motor['touchHoldDuration'] ?? 500) / 1000.0,
+      languageCode: data['languageCode'] ?? 'fr',
     );
   }
 
@@ -78,7 +80,6 @@ class AccessibilityProfile {
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
-      'languageCode': languageCode,
       'visual': {
         'needsCategory': visualNeeds,
         'textSize': (textSize * 100).toInt(),
@@ -97,13 +98,13 @@ class AccessibilityProfile {
         'simplifiedGestures': simplifiedGestures,
         'touchHoldDuration': (touchDuration * 1000).toInt(),
       },
+      'languageCode': languageCode,
       'lastUpdated': FieldValue.serverTimestamp(),
     };
   }
 
   AccessibilityProfile copyWith({
     String? userId,
-    String? languageCode,
     String? visualNeeds,
     double? textSize,
     bool? highContrast,
@@ -114,10 +115,10 @@ class AccessibilityProfile {
     String? motorNeeds,
     bool? simplifiedGestures,
     double? touchDuration,
+    String? languageCode,
   }) {
     return AccessibilityProfile(
       userId: userId ?? this.userId,
-      languageCode: languageCode ?? this.languageCode,
       visualNeeds: visualNeeds ?? this.visualNeeds,
       textSize: textSize ?? this.textSize,
       highContrast: highContrast ?? this.highContrast,
@@ -128,6 +129,7 @@ class AccessibilityProfile {
       motorNeeds: motorNeeds ?? this.motorNeeds,
       simplifiedGestures: simplifiedGestures ?? this.simplifiedGestures,
       touchDuration: touchDuration ?? this.touchDuration,
+      languageCode: languageCode ?? this.languageCode,
     );
   }
 }

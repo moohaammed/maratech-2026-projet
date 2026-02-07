@@ -20,18 +20,83 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_onTabChanged);
     
     // Voice welcome for blind users
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+      _setupLanguage(accessibility.profile.languageCode);
       if (accessibility.profile.visualNeeds == 'blind') {
         _speakWelcome();
       }
     });
   }
 
+  Future<void> _setupLanguage(String langCode) async {
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    await _tts.setLanguage(ttsCode);
+  }
+
+  int _lastIndex = 0;
+  void _onTabChanged() {
+    if (_tabController.index != _lastIndex) {
+      _lastIndex = _tabController.index;
+      final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+      if (accessibility.profile.visualNeeds == 'blind') {
+        _readCurrentTab();
+      }
+    }
+  }
+
+  void _readCurrentTab() async {
+    await _tts.stop();
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final lang = accessibility.profile.languageCode;
+    
+    switch (_tabController.index) {
+      case 0:
+        if (lang == 'ar') {
+          await _tts.speak("علامة تبويب النادي. تاريخنا: ولد نادي الجري بتونس من شغف مشترك بالجري. مساراتنا: من التدريبات اليومية إلى سباقات الماراثون الدولية.");
+        } else if (lang == 'en') {
+          await _tts.speak("Club tab. Our history: The Running Club Tunis was born from a common passion for running. Our routes: From daily training to international marathons.");
+        } else {
+          await _tts.speak("Onglet Club. Notre histoire : Le Running Club Tunis est né d'une passion commune pour la course à pied. Parcours : Des entraînements quotidiens aux marathons internationaux.");
+        }
+        break;
+      case 1:
+        if (lang == 'ar') {
+          await _tts.speak("علامة تبويب القيم. قيمنا: الشمولية، التميز، التضامن. ميثاق النادي: الاحترام، الانضباط، التعاون.");
+        } else if (lang == 'en') {
+          await _tts.speak("Values tab. Our values: Inclusivity, Excellence, Solidarity. Club charter: Respect, Punctuality, Mutual aid.");
+        } else {
+          await _tts.speak("Onglet Valeurs. Nos valeurs : Inclusivité, Dépassement, Solidarité. Charte du club : Respect, Ponctualité, Entraide.");
+        }
+        break;
+      case 2:
+        if (lang == 'ar') {
+          await _tts.speak("علامة تبويب الفعاليات. إليكم قائمة الفعاليات القادمة.");
+        } else if (lang == 'en') {
+          await _tts.speak("Events tab. Here is the list of upcoming events.");
+        } else {
+          await _tts.speak("Onglet Événements. Voici la liste des événements à venir.");
+        }
+        break;
+    }
+  }
+
   Future<void> _speakWelcome() async {
-    await _tts.speak('Mode invité activé. Vous pouvez consulter l\'histoire du club, nos valeurs et la liste des événements. Utilisez les onglets en haut de l\'écran pour naviguer.');
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final lang = accessibility.profile.languageCode;
+    
+    String welcome = "Bienvenue dans le mode invité. Vous êtes sur l'onglet Club. Voici notre histoire.";
+    if (lang == 'ar') welcome = "مرحبًا بكم في وضع الضيف. أنتم الآن في علامة تبويب النادي. إليكم تاريخنا.";
+    if (lang == 'en') welcome = "Welcome to guest mode. You are on the Club tab. Here is our history.";
+    
+    await _tts.speak(welcome);
+    await Future.delayed(const Duration(milliseconds: 1500));
+    _readCurrentTab();
   }
 
   @override

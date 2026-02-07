@@ -69,7 +69,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           });
         },
       );
-      await _tts.setLanguage('fr-FR');
+      final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+      final langCode = accessibility.profile.languageCode;
+      String ttsCode = 'fr-FR';
+      if (langCode == 'ar') ttsCode = 'ar-SA';
+      if (langCode == 'en') ttsCode = 'en-US';
+      
+      await _tts.setLanguage(ttsCode);
       await _tts.setSpeechRate(0.5);
     } catch (e) {
       debugPrint('Voice init error: $e');
@@ -77,10 +83,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
   
   Future<void> _speakWelcome() async {
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final profile = accessibility.profile;
+    
     if (profile.visualNeeds == 'blind') {
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _tts.speak("Écran de connexion. Appuyez sur le micro pour dicter votre nom.");
+      await Future.delayed(const Duration(milliseconds: 800));
+      await _tts.speak(
+        "Écran de connexion. Pour vous connecter, dictez votre nom. Pour continuer en tant qu'invité, dites Invité ou appuyez en bas de l'écran."
+      );
+      
+      // Also register a global voice command if we have access to the service
+      // Note: We'll add a listener for the word "invité" in our local speech if possible
+      // or simply rely on the instructions.
     }
   }
 
@@ -148,12 +162,27 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     // Wait for the prompt to finish (Reduced delay)
     await Future.delayed(const Duration(milliseconds: 500));
     
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final profile = accessibility.profile;
+    
     try {
       await _speech.listen(
         onResult: (result) {
-          final words = result.recognizedWords;
+          final words = result.recognizedWords.toLowerCase();
           debugPrint("🎤 Heard: '$words'");
           
+          // GUEST REDIRECT: Check for "invité" or "guest" or "arabe phonetic for guest"
+          if (words.contains('invité') || words.contains('guest') || words.contains('ضيف')) {
+            _stopVoiceInput();
+            _speak(profile.languageCode == 'ar' ? "جارٍ تسجيل الدخول كضيف" : 
+                   profile.languageCode == 'en' ? "Continuing as guest" : 
+                   "Connexion en tant qu'invité");
+            
+            // Trigger the same logic as the guest button
+            _continueAsGuest();
+            return;
+          }
+
           if (field == 'name') {
             setState(() => _nameController.text = words);
           } else {
@@ -205,6 +234,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _isListeningForPin = false;
       _listeningField = '';
     });
+  }
+
+  void _continueAsGuest() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isConfigured = prefs.getBool('onboarding_wizard_completed') ?? false;
+    
+    if (isConfigured) {
+      Navigator.pushReplacementNamed(context, '/guest-home');
+    } else {
+      Navigator.pushReplacementNamed(
+        context, 
+        '/accessibility-wizard',
+        arguments: {'target': '/guest-home'}
+      );
+    }
   }
 
   void _login() async {
@@ -808,20 +852,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ),
         SizedBox(height: 8 * textScale.clamp(1.0, 1.2)),
         OutlinedButton.icon(
-          onPressed: () async {
-            final prefs = await SharedPreferences.getInstance();
-            final isConfigured = prefs.getBool('onboarding_wizard_completed') ?? false;
-            
-            if (isConfigured) {
-              Navigator.pushReplacementNamed(context, '/guest-home');
-            } else {
-              Navigator.pushReplacementNamed(
-                context, 
-                '/accessibility-wizard',
-                arguments: {'target': '/guest-home'}
-              );
-            }
-          },
+          onPressed: _continueAsGuest,
           icon: Icon(Icons.person_outline, size: 18 * textScale.clamp(1.0, 1.2)),
           label: Text(
             'Continuer en tant qu\'invité',
