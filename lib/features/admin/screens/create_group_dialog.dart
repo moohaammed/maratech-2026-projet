@@ -203,7 +203,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                  ElevatedButton(
                    onPressed: () => Navigator.pop(context, true), // Claim
                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                   child: const Text("Récupérer (Claim)"),
+                   child: const Text("Récupérer"),
                  ),
                ],
              ),

@@ -124,12 +124,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             const SizedBox(height: 4),
                             Text(user.email, style: const TextStyle(fontSize: 12)),
                             const SizedBox(height: 4),
-                            Row(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
                               children: [
                                 _buildRoleBadge(user.role),
-                                const SizedBox(width: 8),
                                 _buildGroupBadge(user),
-                                const SizedBox(width: 8),
                                 if (!user.isActive)
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

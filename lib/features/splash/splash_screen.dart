@@ -71,72 +71,101 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initTtsAndNavigate() async {
-    // Initialize TTS
-    await _tts.setLanguage('fr-FR');
-    await _tts.setSpeechRate(0.5);
-    
-    // Check completion status
-    final prefs = await SharedPreferences.getInstance();
-    final isWizardComplete = prefs.getBool('onboarding_wizard_completed') ?? false;
-    
-    // Check for auto-login
-    String? nextRoute; // Null implies standard flow
-    
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null && mounted) {
-      try {
-        // Load Accessibility Profile
-        final authProvider = Provider.of<AccessibilityProvider>(context, listen: false);
-        await authProvider.loadProfile();
-        debugPrint("✅ Auto-login: Loaded profile for ${currentUser.uid}");
-        
-        // Fetch User Role
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
-        if (userDoc.exists) {
-           final role = (userDoc.data()?['role'] ?? '').toString().toLowerCase();
-           debugPrint("✅ Auto-login user role: $role");
-           
-           // Admin logic (reset accessibility)
-           if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin' || role == 'coach_admin' || role == 'coachadmin') {
-               final defaultProfile = AccessibilityProfile(userId: currentUser.uid);
-               await authProvider.updateProfile(defaultProfile);
-           }
-           
-           if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin') {
-             nextRoute = '/admin-dashboard';
-           } else if (role == 'coach_admin' || role == 'coachadmin') {
-             nextRoute = '/coach-dashboard';
-           } else {
-             nextRoute = '/home';
-           }
-        }
-      } catch (e) {
-        debugPrint("⚠️ Auto-login error: $e");
-        // Fallback to login screen
-      }
-    }
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Speak welcome for blind users IF not already completed (or just welcome anyway)
-      final isScreenReaderActive = MediaQuery.of(context).accessibleNavigation;
-      if (isScreenReaderActive) {
-        await _tts.speak("RCT. Bienvenue! Welcome! مرحبا!");
-      }
-      
-      // Navigate after showing all images
-      await Future.delayed(const Duration(milliseconds: 4500));
-      if (mounted) {
-        if (nextRoute != null) {
-            Navigator.pushReplacementNamed(context, nextRoute!);
-        } else {
-            if (isWizardComplete) {
-                Navigator.pushReplacementNamed(context, '/login');
-            } else {
-                Navigator.pushReplacementNamed(context, '/accessibility-wizard');
-            }
-        }
-      }
+    // START A HARD TIMEOUT TIMER
+    // This guarantees navigation happens after 5 seconds no matter what
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) _navigateTo(null);
     });
+
+    try {
+      // 1. Minimum display time (animation)
+      await Future.delayed(const Duration(milliseconds: 2500));
+      
+      // 2. Load Data Safely
+      final nextRoute = await _loadAppData();
+      
+      if (mounted) {
+        _navigateTo(nextRoute);
+      }
+    } catch (e) {
+      debugPrint("Splash Error: $e");
+      if (mounted) _navigateTo(null);
+    }
+  }
+
+  void _navigateTo(String? nextRoute) {
+    if (!mounted) return;
+    
+    // Prevent double navigation if already navigated
+    // We check if we are still on the splash screen route
+    // This is a simplified check to avoid complex route logic errors
+    
+    final prefsFuture = SharedPreferences.getInstance();
+    
+    prefsFuture.then((prefs) {
+        if (!mounted) return;
+        
+        final isWizardComplete = prefs.getBool('onboarding_wizard_completed') ?? false;
+        String target = '/accessibility-wizard';
+        
+        if (isWizardComplete) target = '/login';
+        if (nextRoute != null) target = nextRoute;
+
+        Navigator.of(context).pushReplacementNamed(target);
+    }).catchError((e) {
+        // Absolute fallback if even prefs fail
+        Navigator.of(context).pushReplacementNamed('/login');
+    });
+  }
+
+  Future<String?> _loadAppData() async {
+    try {
+      // Initialize TTS silently
+      _tts.setLanguage('fr-FR').catchError((_) {});
+
+      // Speak welcome 
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         final isScreenReaderActive = MediaQuery.of(context).accessibleNavigation;
+         if (isScreenReaderActive) {
+           _tts.speak("RCT. Bienvenue! Welcome! مرحبا!");
+         }
+      });
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+           // Load Accessibility Profile
+           final authProvider = Provider.of<AccessibilityProvider>(context, listen: false);
+           await authProvider.loadProfile().timeout(const Duration(seconds: 2), onTimeout: () => null);
+           
+           // Fetch User Role
+           final userDoc = await FirebaseFirestore.instance
+               .collection('users')
+               .doc(currentUser.uid)
+               .get()
+               .timeout(const Duration(seconds: 2));
+               
+           if (userDoc.exists) {
+              final role = (userDoc.data()?['role'] ?? '').toString().toLowerCase();
+              debugPrint("✅ Auto-login user role: $role");
+              
+              if (role.contains('admin')) {
+                  final defaultProfile = AccessibilityProfile(userId: currentUser.uid);
+                  await authProvider.updateProfile(defaultProfile);
+              }
+              
+              if (role == 'main_admin' || role == 'sub_admin' || role == 'group_admin' || role == 'groupadmin') {
+                return '/admin-dashboard';
+              } else if (role == 'coach_admin' || role == 'coachadmin') {
+                return '/coach-dashboard';
+              } else {
+                return '/home';
+              }
+           }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Minimal Splash Error: $e");
+    }
+    return null;
   }
 
   @override

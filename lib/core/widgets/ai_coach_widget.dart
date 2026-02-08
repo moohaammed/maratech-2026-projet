@@ -12,13 +12,12 @@ class AICoachButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton(
+    return FloatingActionButton.extended(
       heroTag: 'ai_coach_button',
       onPressed: () => _showAICoachDialog(context),
       backgroundColor: AppColors.primary,
-      elevation: 4,
-      child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 28),
-      tooltip: 'Coach IA',
+      icon: const Icon(Icons.smart_toy_rounded, color: Colors.white),
+      label: const Text('Coach IA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -47,7 +46,6 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
   late AnimationController _pulseController;
   bool _isListening = false;
   String _recognizedText = '';
-  String? _lastSpokenText; // Track currently speaking message
 
   @override
   void initState() {
@@ -65,9 +63,7 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
     ));
     
     // Initialize AI
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initAI();
-    });
+    _initAI();
   }
 
   void _initAI() async {
@@ -102,7 +98,16 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
     }
   }
 
+  String _getWelcomeMessage() {
+    return '''🏃 Salut! Je suis ton Coach IA!
 
+Tu peux me demander:
+• "Quelle course aujourd'hui?"
+• "Inscris-moi à l'événement"
+• "Donne-moi un conseil"
+
+Parle ou écris ta question! 🎤''';
+  }
 
   @override
   void dispose() {
@@ -282,10 +287,6 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
-    final accessibility = Provider.of<AccessibilityService>(context);
-    // Check if this specific message is being spoken
-    // We compare text because ID doesn't exist.
-    final isPlaying = accessibility.isSpeaking && _lastSpokenText == message.text;
     
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -325,53 +326,13 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isUser ? Colors.white : null,
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (!isUser) ...[
-                     const SizedBox(height: 8),
-                     Align(
-                       alignment: Alignment.centerRight,
-                       child: InkWell(
-                         onTap: () {
-                           if (isPlaying) {
-                             accessibility.stopSpeaking();
-                             setState(() => _lastSpokenText = null);
-                           } else {
-                             accessibility.speak(message.text);
-                             setState(() => _lastSpokenText = message.text);
-                           }
-                         },
-                         borderRadius: BorderRadius.circular(20),
-                         child: Padding(
-                           padding: const EdgeInsets.all(4.0),
-                           child: Row(
-                             mainAxisSize: MainAxisSize.min,
-                             children: [
-                               Icon(
-                                 isPlaying ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
-                                 size: 18,
-                                 color: isPlaying ? AppColors.primary : Colors.grey,
-                               ),
-                               if (isPlaying) ...[
-                                 const SizedBox(width: 4),
-                                 const Text('Stop', style: TextStyle(fontSize: 10, color: AppColors.primary)),
-                               ],
-                             ],
-                           ),
-                         ),
-                       ),
-                     ),
-                  ],
-                ],
+              child: Text(
+                message.text,
+                style: TextStyle(
+                  color: isUser ? Colors.white : null,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
               ),
             ),
           ),
@@ -386,19 +347,6 @@ class _AICoachSheetState extends State<AICoachSheet> with SingleTickerProviderSt
         ],
       ),
     );
-  }
-
-  String _getWelcomeMessage() {
-    try {
-      final lang = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
-      switch (lang) {
-        case 'ar': return "مرحباً! أنا مدربك الذكي. كيف يمكنني مساعدتك؟";
-        case 'en': return "Hello! I'm your AI Coach. How can I help you?";
-        default: return "Bonjour! Je suis votre Coach IA. Comment puis-je vous aider?";
-      }
-    } catch (e) {
-      return "Bonjour! Je suis votre Coach IA. Comment puis-je vous aider?";
-    }
   }
 
   Widget _buildInputArea() {

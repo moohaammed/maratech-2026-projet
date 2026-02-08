@@ -219,19 +219,24 @@ class UserModel {
   }
 
   String getGroupDisplayName() {
-    if (assignedGroupId != null) return 'Groupe Dynamique';
+    // Check for legacy dynamic group IDs that map to levels
+    if (assignedGroupId != null) {
+      if (['1', '2'].contains(assignedGroupId)) return 'Groupe Débutant';
+      if (assignedGroupId == '3') return 'Groupe Intermédiaire';
+      if (['4', '5'].contains(assignedGroupId)) return 'Groupe Avancé';
+      return 'Groupe Avancé'; // Fallback for other IDs
+    }
+    
     if (assignedGroup == null) return 'Aucun groupe';
     switch (assignedGroup!) {
       case RunningGroup.group1:
-        return 'Groupe 1';
       case RunningGroup.group2:
-        return 'Groupe 2';
+        return 'Groupe Débutant';
       case RunningGroup.group3:
-        return 'Groupe 3';
+        return 'Groupe Intermédiaire';
       case RunningGroup.group4:
-        return 'Groupe 4';
       case RunningGroup.group5:
-        return 'Groupe 5';
+        return 'Groupe Avancé';
     }
   }
 }

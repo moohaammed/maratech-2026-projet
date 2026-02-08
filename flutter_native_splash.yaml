@@ -1,5 +1,7 @@
 flutter_native_splash:
-  # Disable native splash - use custom Flutter splash screen only
-  android: false
-  ios: false
-  web: false
+  color: "#FFFFFF"
+  image: "assets/logo_rct.png"
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/logo_rct.png"
+  fullscreen: true

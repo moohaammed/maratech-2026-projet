@@ -75,32 +75,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 2),
-        ),
-        errorStyle: TextStyle(color: AppColors.error, fontSize: 12 * textScale),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-      
-      // Smooth Page Transitions
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
-      
-      // SnackBar Theme
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: AppColors.textPrimary,
-        contentTextStyle: TextStyle(color: Colors.white, fontSize: 14 * textScale),
       ),
     );
   }
@@ -186,36 +161,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.highContrastPrimary, width: 3),
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 3),
-        ),
-        errorStyle: TextStyle(color: Colors.red, fontSize: 14 * textScale, fontWeight: FontWeight.bold),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         labelStyle: TextStyle(
           color: Colors.white,
           fontSize: 16 * textScale,
         ),
-      ),
-      
-      // Smooth Page Transitions
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
-      
-      // SnackBar Theme
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: AppColors.highContrastSurface,
-        contentTextStyle: TextStyle(color: Colors.white, fontSize: 16 * textScale, fontWeight: FontWeight.bold),
       ),
     );
   }
