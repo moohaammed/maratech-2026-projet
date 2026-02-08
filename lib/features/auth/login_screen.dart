@@ -393,7 +393,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         },
         listenFor: const Duration(seconds: 8),
         pauseFor: const Duration(seconds: 3),
-        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
+        // Force Latin characters (French/English) for Name even if app is in Arabic
+        localeId: _T('fr-FR', 'en-US', 'fr-FR'),
         cancelOnError: false,
         listenMode: ListenMode.dictation,
       );
@@ -467,7 +468,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         },
         listenFor: const Duration(seconds: 8),
         pauseFor: const Duration(seconds: 3),
-        localeId: _T('fr-FR', 'en-US', 'ar-SA'),
+        // Force Latin digits (French/English) for PIN even if app is in Arabic
+        localeId: _T('fr-FR', 'en-US', 'fr-FR'),
         cancelOnError: false,
         listenMode: ListenMode.confirmation,
       );
