@@ -24,14 +24,15 @@ jobs:
 
       - name: Enable iOS platform
         run: |
-          flutter create .
-          # Update minimum iOS version in Podfile if necessary.
-          # We use || true to prevent failure if Podfile doesn't exist yet (though flutter create should generate it if needed).
-          # The sed syntax for macOS is sed -i '' ...
+          flutter create . --platforms ios
+          # Uncomment and set platform to 15.5 in Podfile
           if [ -f "ios/Podfile" ]; then
-            sed -i '' "s/platform :ios, '.*'/platform :ios, '13.0'/" ios/Podfile
-          else
-             echo "Podfile not found, skipping sed."
+            sed -i '' "s/^[[:space:]]*#[[:space:]]*platform :ios, '.*'/platform :ios, '15.5'/" ios/Podfile
+            sed -i '' "s/^[[:space:]]*platform :ios, '.*'/platform :ios, '15.5'/" ios/Podfile
+          fi
+          # Also update it in the project file to avoid mismatches
+          if [ -f "ios/Runner.xcodeproj/project.pbxproj" ]; then
+            sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = .*/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
           fi
 
       - name: Install dependencies
