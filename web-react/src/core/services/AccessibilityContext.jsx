@@ -37,6 +37,9 @@ export function AccessibilityProvider({ children }) {
       return false;
     }
   });
+  const [visualNeeds, setVisualNeedsState] = useState(() => localStorage.getItem(STORAGE_KEYS.visualNeeds) || "normal");
+  const [audioNeeds, setAudioNeedsState] = useState(() => localStorage.getItem(STORAGE_KEYS.audioNeeds) || "normal");
+  const [motorNeeds, setMotorNeedsState] = useState(() => localStorage.getItem(STORAGE_KEYS.motorNeeds) || "normal");
 
   useEffect(() => {
     document.documentElement.dataset.theme = highContrast ? "highContrast" : "";
@@ -47,7 +50,7 @@ export function AccessibilityProvider({ children }) {
     setHighContrastState(v);
     try {
       localStorage.setItem(STORAGE_KEYS.highContrast, JSON.stringify(v));
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   const setTextScale = useCallback((value) => {
@@ -55,7 +58,7 @@ export function AccessibilityProvider({ children }) {
     setTextScaleState(v);
     try {
       localStorage.setItem(STORAGE_KEYS.textScale, String(v));
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   const setBoldText = useCallback((value) => {
@@ -63,16 +66,43 @@ export function AccessibilityProvider({ children }) {
     setBoldTextState(v);
     try {
       localStorage.setItem(STORAGE_KEYS.boldText, JSON.stringify(v));
-    } catch (_) {}
+    } catch (_) { }
+  }, []);
+
+  const setVisualNeeds = useCallback((value) => {
+    setVisualNeedsState(value);
+    try {
+      localStorage.setItem(STORAGE_KEYS.visualNeeds, value);
+    } catch (_) { }
+  }, []);
+
+  const setAudioNeeds = useCallback((value) => {
+    setAudioNeedsState(value);
+    try {
+      localStorage.setItem(STORAGE_KEYS.audioNeeds, value);
+    } catch (_) { }
+  }, []);
+
+  const setMotorNeeds = useCallback((value) => {
+    setMotorNeedsState(value);
+    try {
+      localStorage.setItem(STORAGE_KEYS.motorNeeds, value);
+    } catch (_) { }
   }, []);
 
   const value = {
     highContrast,
     textScale,
     boldText,
+    visualNeeds,
+    audioNeeds,
+    motorNeeds,
     setHighContrast,
     setTextScale,
     setBoldText,
+    setVisualNeeds,
+    setAudioNeeds,
+    setMotorNeeds,
     STORAGE_KEYS,
   };
 
@@ -107,11 +137,11 @@ export function getWizardCompleted() {
 export function setWizardCompleted(value) {
   try {
     localStorage.setItem(STORAGE_KEYS.wizardCompleted, JSON.stringify(!!value));
-  } catch (_) {}
+  } catch (_) { }
 }
 
 export function saveAccessibilityProfile(profile) {
   try {
     localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(profile));
-  } catch (_) {}
+  } catch (_) { }
 }

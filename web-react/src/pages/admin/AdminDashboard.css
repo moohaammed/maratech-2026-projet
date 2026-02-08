@@ -1,0 +1,195 @@
+/* ============================================================================
+   ADMIN DASHBOARD LAYOUT (Flutter-like)
+   ============================================================================ */
+
+.admin-layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #F5F5F5;
+}
+
+/* ============================================================================
+   APP BAR
+   ============================================================================ */
+
+.app-bar {
+    background-color: var(--group-admin-primary, #E53935);
+    color: white;
+    padding-top: env(safe-area-inset-top);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+}
+
+.app-bar-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    padding: 0 16px;
+}
+
+.app-bar-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.5px;
+    color: white;
+}
+
+.app-bar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-button-light {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.icon-button-light:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ============================================================================
+   TABS
+   ============================================================================ */
+
+.app-bar-tabs {
+    display: flex;
+    margin-top: -4px;
+    /* Slight overlap or adjustment */
+}
+
+.tab-item {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 4px solid transparent;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.5px;
+}
+
+.tab-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.tab-item.active {
+    color: white;
+    border-bottom-color: white;
+}
+
+/* ============================================================================
+   STATISTICS HEADER
+   ============================================================================ */
+
+.stats-header {
+    background-color: var(--group-admin-primary, #E53935);
+    padding: 16px 16px 12px 16px;
+    margin-bottom: 12px;
+    color: white;
+    /* Create a curved bottom effect or just straight block like Flutter code */
+}
+
+.stats-grid {
+    display: flex;
+    gap: 12px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.stat-box {
+    flex: 1;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.2s;
+}
+
+.stat-box:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+.stat-icon-small {
+    margin-bottom: 0;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+}
+
+.stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value-small {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-label-small {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.9;
+    text-transform: uppercase;
+}
+
+/* ============================================================================
+   MAIN CONTENT
+   ============================================================================ */
+
+.content-container {
+    flex: 1;
+    padding: 0 16px 24px 16px;
+    max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
+    overflow-y: auto;
+}
+
+/* ============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================ */
+
+@media (min-width: 768px) {
+
+    .app-bar-content,
+    .stats-grid,
+    .content-container {
+        max-width: 1024px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .tab-item {
+        max-width: 200px;
+    }
+
+    .app-bar-tabs {
+        justify-content: center;
+    }
+}

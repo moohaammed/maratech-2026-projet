@@ -1,0 +1,140 @@
+.login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    transition: background-color 0.3s ease;
+}
+
+.login-content {
+    width: 100%;
+    animation: fadeIn 1.2s ease-out;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.slide-up {
+    animation: slideUp 1s ease-out;
+    animation-delay: 0.2s;
+    animation-fill-mode: backwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Logo animation */
+.logo-wrapper {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.logo-wrapper:hover {
+    transform: scale(1.05);
+}
+
+/* Login button */
+.login-button {
+    transition: transform 0.2s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.login-button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(229, 57, 53, 0.3);
+}
+
+.login-button:not(:disabled):active {
+    transform: translateY(0);
+}
+
+/* Loading spinner */
+.spinner {
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Footer button */
+.footer button {
+    transition: transform 0.2s ease;
+}
+
+.footer button:hover {
+    transform: scale(1.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 360px) {
+    .login-content {
+        padding: 16px !important;
+    }
+
+    .login-card {
+        padding: 16px !important;
+    }
+}
+
+@media (min-width: 600px) {
+    .login-card {
+        box-shadow: 0 20px 60px rgba(229, 57, 53, 0.15) !important;
+    }
+}
+
+/* High contrast mode overrides */
+[data-theme="highContrast"] .login-screen {
+    background: #000000 !important;
+}
+
+[data-theme="highContrast"] .login-card {
+    border: 2px solid #ffffff !important;
+}
+
+[data-theme="highContrast"] .login-button:not(:disabled):hover {
+    box-shadow: 0 8px 20px rgba(0, 230, 118, 0.5) !important;
+}
+
+/* Accessibility - Focus visible */
+button:focus-visible,
+input:focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

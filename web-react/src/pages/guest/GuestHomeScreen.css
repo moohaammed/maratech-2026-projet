@@ -1,0 +1,50 @@
+/* Full Screen Overrides for Guest View */
+.guest-full-page {
+    padding: 0 !important;
+    /* Remove page-container padding */
+    background-color: #FFFFFF;
+}
+
+.guest-full-page .page-header {
+    border-radius: 0;
+    /* Edge to edge header */
+    padding: 24px 16px;
+}
+
+.guest-full-page .tabs-container {
+    padding: 0 16px;
+}
+
+.guest-full-page .content-container {
+    margin-top: 24px;
+    padding: 0;
+}
+
+.guest-full-page .content-card {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+    padding: 20px 16px;
+    width: 100%;
+    max-width: none;
+}
+
+/* Specific component adjustments for full width */
+.guest-full-page .card-grid,
+.guest-full-page .values-grid {
+    grid-template-columns: 1fr;
+    /* Stack on mobile for true full width feel */
+    gap: 16px;
+}
+
+.guest-full-page .info-card,
+.guest-full-page .value-card {
+    border-radius: 12px;
+    margin-bottom: 8px;
+}
+
+/* Ensure EventListScreen within Guest View also looks full screen */
+.guest-full-page .events-list-container {
+    padding: 0;
+}

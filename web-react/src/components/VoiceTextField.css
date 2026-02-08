@@ -1,0 +1,85 @@
+.voice-text-field {
+    width: 100%;
+}
+
+.voice-text-field-container {
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.voice-text-field-container:focus-within {
+    border-width: 2px !important;
+}
+
+.voice-text-field-container.listening {
+    animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+
+    0%,
+    100% {
+        border-color: rgba(211, 47, 47, 0.5);
+    }
+
+    50% {
+        border-color: rgba(211, 47, 47, 1);
+    }
+}
+
+.voice-button {
+    transition: transform 0.2s ease, color 0.3s ease;
+}
+
+.voice-button:hover {
+    transform: scale(1.1);
+}
+
+.voice-button:active {
+    transform: scale(0.95);
+}
+
+.voice-button.listening {
+    animation: pulse-mic 1s ease-in-out infinite;
+}
+
+@keyframes pulse-mic {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.15);
+    }
+}
+
+.listening-spinner {
+    border: 2px solid rgba(211, 47, 47, 0.2);
+    border-top-color: #D32F2F;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Input placeholder styling */
+.voice-text-field input::placeholder {
+    opacity: 0.5;
+}
+
+/* Remove number input spinners */
+.voice-text-field input[type="tel"]::-webkit-inner-spin-button,
+.voice-text-field input[type="tel"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.voice-text-field input[type="tel"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}

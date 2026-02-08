@@ -1,0 +1,87 @@
+/* OpenStreetMap Component Styles */
+.openstreetmap-container {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 250px;
+}
+
+.location-picker-container {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.location-search-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.location-search-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.location-search-button {
+  padding: 10px 16px;
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.location-search-button:hover {
+  background-color: #000;
+}
+
+.location-search-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.location-address-display {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+  padding: 8px;
+  background-color: white;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+/* Map marker popup styles */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px;
+  font-size: 14px;
+  color: #333;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .location-picker-container {
+    padding: 12px;
+  }
+
+  .location-search-input,
+  .location-search-button {
+    font-size: 16px;
+    /* Prevent zoom on iOS */
+  }
+}
