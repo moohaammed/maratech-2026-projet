@@ -37,7 +37,21 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AccessibilityProvider()),
-        ChangeNotifierProvider(create: (_) => AccessibilityService()),
+        ChangeNotifierProxyProvider<AccessibilityProvider, AccessibilityService>(
+          create: (_) => AccessibilityService(),
+          update: (context, provider, service) {
+            final accessibilityService = service ?? AccessibilityService();
+            accessibilityService.syncWithProfile(
+              ttsEnabled: provider.profile.ttsEnabled,
+              vibrationEnabled: provider.profile.vibrationEnabled,
+              audioNeeds: provider.profile.audioNeeds,
+              visualNeeds: provider.profile.visualNeeds,
+              motorNeeds: provider.profile.motorNeeds,
+              languageCode: provider.profile.languageCode,
+            );
+            return accessibilityService;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => AICoachService()),
       ],
       child: const RctApp(),

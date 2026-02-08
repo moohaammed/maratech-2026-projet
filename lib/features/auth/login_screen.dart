@@ -118,7 +118,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
     final profile = accessibility.profile;
     
-    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
+    // Only speak welcome if TTS is enabled AND user needs audio assistance
+    final shouldSpeak = profile.ttsEnabled && 
+                        (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision');
+    
+    if (shouldSpeak) {
       await Future.delayed(const Duration(milliseconds: 800));
       
       // Welcome message with clear instructions
@@ -166,8 +170,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
   
   Future<void> _speak(String text) async {
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
-    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision') {
+    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+    final profile = accessibility.profile;
+    
+    // Only speak if TTS is enabled AND user needs it (blind/low vision)
+    // OR if user explicitly has TTS enabled
+    final shouldSpeak = profile.ttsEnabled && 
+                        (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision');
+    
+    if (shouldSpeak) {
       await _tts.speak(text);
     }
   }

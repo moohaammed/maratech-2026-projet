@@ -15,6 +15,12 @@ class AccessibilityProvider with ChangeNotifier {
   AccessibilityProfile get profile => _profile;
   String get languageCode => _languageCode;
   bool get isLoading => _isLoading;
+  
+  // Quick accessors for common settings
+  bool get ttsEnabled => _profile.ttsEnabled && _profile.audioNeeds != 'deaf';
+  bool get vibrationEnabled => _profile.vibrationEnabled;
+  double get textScale => _profile.textSize;
+  bool get highContrast => _profile.highContrast;
 
 
   // 🎨 DYNAMIC THEME GENERATOR
@@ -156,6 +162,26 @@ class AccessibilityProvider with ChangeNotifier {
           .doc(user.uid)
           .set(newProfile.toMap(), SetOptions(merge: true));
     }
+  }
+  
+  // 🔊 TTS CONTROL
+  Future<void> setTtsEnabled(bool enabled) async {
+    _profile = _profile.copyWith(ttsEnabled: enabled);
+    notifyListeners();
+    
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('accessibilityProfiles')
+          .doc(user.uid)
+          .set({'audio': {'ttsEnabled': enabled}}, SetOptions(merge: true));
+    }
+    
+    // Also save to local prefs
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('ttsEnabled', enabled);
+    
+    debugPrint('📢 TTS ${enabled ? 'enabled' : 'disabled'}');
   }
 
   // 🌐 LANGUAGE MANAGEMENT

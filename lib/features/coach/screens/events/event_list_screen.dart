@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import '../../../../core/services/accessibility_service.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../models/event_model.dart';
@@ -30,7 +30,6 @@ class EventListScreen extends StatefulWidget {
 class _EventListScreenState extends State<EventListScreen>
     with SingleTickerProviderStateMixin {
   final EventService _eventService = EventService();
-  final FlutterTts _tts = FlutterTts();
   DateTime? _filterFrom;
   DateTime? _filterTo;
   RunningGroup? _filterGroup;
@@ -42,7 +41,6 @@ class _EventListScreenState extends State<EventListScreen>
   @override
   void initState() {
     super.initState();
-    _initTts();
     _staggerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -56,20 +54,19 @@ class _EventListScreenState extends State<EventListScreen>
     super.dispose();
   }
 
-  Future<void> _initTts() async {
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-  }
+
 
   Future<void> _speakSelection(String title) async {
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    if (accessibility.profile.visualNeeds != 'blind' && accessibility.profile.visualNeeds != 'low_vision') {
-      return;
-    }
+    final profile = accessibility.profile;
+    
+    // Only speak if TTS is enabled AND (user needs it OR explicitly enabled)
+    final shouldSpeak = profile.ttsEnabled && 
+                       (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision');
 
-    await _tts.setLanguage('fr-FR');
-    await _tts.speak('Ouverture de $title');
+    if (shouldSpeak) {
+      Provider.of<AccessibilityService>(context, listen: false).speak('Ouverture de $title');
+    }
   }
 
   @override

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import '../../../core/services/accessibility_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../coach/screens/events/event_list_screen.dart';
 import '../../accessibility/providers/accessibility_provider.dart';
@@ -14,7 +14,6 @@ class GuestHomeScreen extends StatefulWidget {
 
 class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderStateMixin {
   late TabController _tabController;
-  final FlutterTts _tts = FlutterTts();
 
   @override
   void initState() {
@@ -23,21 +22,20 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
     _tabController.addListener(_onTabChanged);
     
     // Voice welcome for blind users
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-      _setupLanguage(accessibility.profile.languageCode);
-      if (accessibility.profile.visualNeeds == 'blind') {
-        _speakWelcome();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final service = Provider.of<AccessibilityService>(context, listen: false);
+      await service.initialize();
+      
+      if (mounted) {
+        final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+        if (accessibility.profile.visualNeeds == 'blind') {
+          _speakWelcome();
+        }
       }
     });
   }
 
-  Future<void> _setupLanguage(String langCode) async {
-    String ttsCode = 'fr-FR';
-    if (langCode == 'ar') ttsCode = 'ar-SA';
-    if (langCode == 'en') ttsCode = 'en-US';
-    await _tts.setLanguage(ttsCode);
-  }
+
 
   int _lastIndex = 0;
   void _onTabChanged() {
@@ -51,50 +49,66 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
   }
 
   void _readCurrentTab() async {
-    await _tts.stop();
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final lang = accessibility.profile.languageCode;
+    final profile = accessibility.profile;
     
+    // Check if TTS is relevant
+    if (!profile.ttsEnabled || profile.visualNeeds != 'blind') return;
+     
+    final service = Provider.of<AccessibilityService>(context, listen: false);
+    final lang = profile.languageCode;
+    
+    String text = "";
     switch (_tabController.index) {
       case 0:
         if (lang == 'ar') {
-          await _tts.speak("علامة تبويب النادي. تاريخنا: ولد نادي الجري بتونس من شغف مشترك بالجري. مساراتنا: من التدريبات اليومية إلى سباقات الماراثون الدولية.");
+          text = "علامة تبويب النادي. تاريخنا: ولد نادي الجري بتونس من شغف مشترك بالجري. مساراتنا: من التدريبات اليومية إلى سباقات الماراثون الدولية.";
         } else if (lang == 'en') {
-          await _tts.speak("Club tab. Our history: The Running Club Tunis was born from a common passion for running. Our routes: From daily training to international marathons.");
+          text = "Club tab. Our history: The Running Club Tunis was born from a common passion for running. Our routes: From daily training to international marathons.";
         } else {
-          await _tts.speak("Onglet Club. Notre histoire : Le Running Club Tunis est né d'une passion commune pour la course à pied. Parcours : Des entraînements quotidiens aux marathons internationaux.");
+          text = "Onglet Club. Notre histoire : Le Running Club Tunis est né d'une passion commune pour la course à pied. Parcours : Des entraînements quotidiens aux marathons internationaux.";
         }
         break;
       case 1:
         if (lang == 'ar') {
-          await _tts.speak("علامة تبويب القيم. قيمنا: الشمولية، التميز، التضامن. ميثاق النادي: الاحترام، الانضباط، التعاون.");
+          text = "علامة تبويب القيم. قيمنا: الشمولية، التميز، التضامن. ميثاق النادي: الاحترام، الانضباط، التعاون.";
         } else if (lang == 'en') {
-          await _tts.speak("Values tab. Our values: Inclusivity, Excellence, Solidarity. Club charter: Respect, Punctuality, Mutual aid.");
+          text = "Values tab. Our values: Inclusivity, Excellence, Solidarity. Club charter: Respect, Punctuality, Mutual aid.";
         } else {
-          await _tts.speak("Onglet Valeurs. Nos valeurs : Inclusivité, Dépassement, Solidarité. Charte du club : Respect, Ponctualité, Entraide.");
+          text = "Onglet Valeurs. Nos valeurs : Inclusivité, Dépassement, Solidarité. Charte du club : Respect, Ponctualité, Entraide.";
         }
         break;
       case 2:
         if (lang == 'ar') {
-          await _tts.speak("علامة تبويب الفعاليات. إليكم قائمة الفعاليات القادمة.");
+          text = "علامة تبويب الفعاليات. إليكم قائمة الفعاليات القادمة.";
         } else if (lang == 'en') {
-          await _tts.speak("Events tab. Here is the list of upcoming events.");
+          text = "Events tab. Here is the list of upcoming events.";
         } else {
-          await _tts.speak("Onglet Événements. Voici la liste des événements à venir.");
+          text = "Onglet Événements. Voici la liste des événements à venir.";
         }
         break;
+    }
+    
+    if (text.isNotEmpty) {
+      await service.speak(text);
     }
   }
 
   Future<void> _speakWelcome() async {
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final lang = accessibility.profile.languageCode;
+    final profile = accessibility.profile;
+    
+     // Check if TTS is relevant
+    if (!profile.ttsEnabled || profile.visualNeeds != 'blind') return;
+
+    final lang = profile.languageCode;
+    final service = Provider.of<AccessibilityService>(context, listen: false);
     
     String welcome = "Bienvenue dans le mode invité. Vous êtes sur l'onglet Club. Voici notre histoire.";
     if (lang == 'ar') welcome = "مرحبًا بكم في وضع الضيف. أنتم الآن في علامة تبويب النادي. إليكم تاريخنا.";
     if (lang == 'en') welcome = "Welcome to guest mode. You are on the Club tab. Here is our history.";
     
-    await _tts.speak(welcome);
+    await service.speak(welcome);
     await Future.delayed(const Duration(milliseconds: 1500));
     _readCurrentTab();
   }
@@ -102,7 +116,6 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> with TickerProviderSt
   @override
   void dispose() {
     _tabController.dispose();
-    _tts.stop();
     super.dispose();
   }
 

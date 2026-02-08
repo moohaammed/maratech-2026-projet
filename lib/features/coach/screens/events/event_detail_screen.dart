@@ -1,7 +1,7 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'package:add_2_calendar/add_2_calendar.dart' as calendar;
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import '../../../../core/services/accessibility_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -23,7 +23,7 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> with SingleTickerProviderStateMixin {
-  final FlutterTts _tts = FlutterTts();
+
   bool _hasSpoken = false;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -34,7 +34,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
   void initState() {
     super.initState();
     _eventFuture = EventService().getEventById(widget.eventId);
-    _initTts();
+    // _initTts(); // Removed local TTS init
     _animController = AnimationController(
        vsync: this,
        duration: const Duration(milliseconds: 800),
@@ -52,20 +52,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
 
   @override
   void dispose() {
-    _tts.stop();
+
     _animController.dispose();
     super.dispose();
   }
 
-  Future<void> _initTts() async {
-    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final langCode = accessibility.languageCode;
-    
-    await _tts.setLanguage('fr-FR');
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-  }
+
 
   Future<void> _openMap(String location, double? lat, double? lng) async {
     Uri googleUrl;
@@ -130,17 +122,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
     if (_hasSpoken) return;
     
     final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    if (accessibility.profile.visualNeeds != 'blind' && accessibility.profile.visualNeeds != 'low_vision') {
+    final profile = accessibility.profile;
+    
+    // Only speak if TTS is enabled AND (user needs it OR explicitly enabled)
+    final shouldSpeak = profile.ttsEnabled && 
+                       (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision');
+
+    if (!shouldSpeak) {
       return;
     }
 
     _hasSpoken = true;
     
     await Future.delayed(const Duration(milliseconds: 500));
-    await _tts.setLanguage('fr-FR');
+    final service = Provider.of<AccessibilityService>(context, listen: false);
     
     String text = "Détail de l'événement. Titre : ${event.title}. Date : ${_formatDate(event.date)}. Heure : ${event.time}. Lieu : ${event.location}.";
-    await _tts.speak(text);
+    await service.speak(text);
   }
 
   @override

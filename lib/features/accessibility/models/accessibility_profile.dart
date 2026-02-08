@@ -12,6 +12,7 @@ class AccessibilityProfile {
 
   // Audio
   final String audioNeeds; // 'normal', 'hearing_loss', 'deaf'
+  final bool ttsEnabled; // Text-to-Speech enabled
   final bool vibrationEnabled;
   final bool visualNotifications; // Flash screen instead of sound
 
@@ -32,6 +33,7 @@ class AccessibilityProfile {
     this.boldText = false,
     this.dyslexicMode = false,
     this.audioNeeds = 'normal',
+    this.ttsEnabled = true, // Enabled by default
     this.vibrationEnabled = true,
     this.visualNotifications = false,
     this.motorNeeds = 'normal',
@@ -60,6 +62,10 @@ class AccessibilityProfile {
       }
     }
     
+    // TTS is disabled for deaf users by default
+    final audioNeeds = audio['needsCategory'] ?? 'normal';
+    final ttsEnabled = audio['ttsEnabled'] ?? (audioNeeds != 'deaf');
+    
     return AccessibilityProfile(
       userId: id,
       visualNeeds: visual['needsCategory'] ?? 'normal',
@@ -67,7 +73,8 @@ class AccessibilityProfile {
       highContrast: isHighContrast,
       boldText: visual['boldText'] ?? false,
       dyslexicMode: visual['dyslexicMode'] ?? false,
-      audioNeeds: audio['needsCategory'] ?? 'normal',
+      audioNeeds: audioNeeds,
+      ttsEnabled: ttsEnabled,
       vibrationEnabled: audio['vibrationEnabled'] ?? true,
       visualNotifications:
           audio['notificationStyle'] == 'visual_only' ||
@@ -92,6 +99,7 @@ class AccessibilityProfile {
       },
       'audio': {
         'needsCategory': audioNeeds,
+        'ttsEnabled': ttsEnabled,
         'vibrationEnabled': vibrationEnabled,
         'notificationStyle': visualNotifications
             ? 'visual_only'
@@ -115,6 +123,7 @@ class AccessibilityProfile {
     bool? boldText,
     bool? dyslexicMode,
     String? audioNeeds,
+    bool? ttsEnabled,
     bool? vibrationEnabled,
     bool? visualNotifications,
     String? motorNeeds,
@@ -130,6 +139,7 @@ class AccessibilityProfile {
       boldText: boldText ?? this.boldText,
       dyslexicMode: dyslexicMode ?? this.dyslexicMode,
       audioNeeds: audioNeeds ?? this.audioNeeds,
+      ttsEnabled: ttsEnabled ?? this.ttsEnabled,
       vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
       visualNotifications: visualNotifications ?? this.visualNotifications,
       motorNeeds: motorNeeds ?? this.motorNeeds,

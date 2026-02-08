@@ -118,6 +118,62 @@ class AccessibilityService extends ChangeNotifier {
     debugPrint('   Speech: $_isSpeechAvailable');
     debugPrint('   Vibration: $_hasVibrator');
   }
+  
+  /// Sync service settings with an AccessibilityProfile
+  /// Call this when profile changes to ensure consistency
+  void syncWithProfile({
+    required bool ttsEnabled,
+    required bool vibrationEnabled, 
+    required String audioNeeds,
+    required String visualNeeds,
+    required String motorNeeds,
+    required String languageCode,
+  }) {
+    _voiceGuidanceEnabled = ttsEnabled && audioNeeds != 'deaf';
+    _hapticFeedbackEnabled = vibrationEnabled;
+    _audioNeeds = audioNeeds;
+    _visualNeeds = visualNeeds;
+    _motorNeeds = motorNeeds;
+    
+    // 🛑 RESTRICT VOICE COMMANDS: Based on Motor Needs
+    // Force DISABLE voice commands if user has 'normal' motor skills (even if blind).
+    // They should use Touch + TTS. Voice Input is reserved for motor difficulties.
+    if (motorNeeds == 'normal') {
+      _voiceCommandsEnabled = false;
+      if (_isListening) {
+        _speech.stop();
+        _isListening = false;
+      }
+    } else {
+      _voiceCommandsEnabled = true;
+    }
+    
+    // Update language if changed
+    final newLang = AppLanguage.all.firstWhere(
+      (l) => l.code == languageCode,
+      orElse: () => AppLanguage.french,
+    );
+    if (newLang.code != _currentLanguage.code) {
+      setLanguage(newLang);
+    }
+    
+    debugPrint('♿ Synced with profile:');
+    debugPrint('   TTS: $_voiceGuidanceEnabled');
+    debugPrint('   Voice Cmds: $_voiceCommandsEnabled');
+    debugPrint('   Vibration: $_hapticFeedbackEnabled');
+    debugPrint('   Language: ${_currentLanguage.nativeName}');
+    
+    notifyListeners();
+  }
+  
+  /// Quick method to set TTS enabled/disabled
+  void setTtsEnabled(bool enabled) {
+    _voiceGuidanceEnabled = enabled;
+    if (!enabled) {
+      stopSpeaking();
+    }
+    notifyListeners();
+  }
 
   // ═══════════════════════════════════════════════════════════
   // LANGUAGE
@@ -125,25 +181,35 @@ class AccessibilityService extends ChangeNotifier {
 
   Future<void> setLanguage(AppLanguage language) async {
     _currentLanguage = language;
-    await _tts.setLanguage(language.ttsCode);
+    
+    // Apply optimized TTS settings for this language
+    await _applyTtsLanguageSettings(language.ttsCode);
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('languageCode', language.code);
     
+    debugPrint('🌐 Language changed to: ${language.nativeName}');
     notifyListeners();
   }
 
   // ═══════════════════════════════════════════════════════════
-  // TEXT-TO-SPEECH
+  // TEXT-TO-SPEECH (Enhanced with Google TTS preference)
   // ═══════════════════════════════════════════════════════════
+
+  /// Language-specific TTS presets for optimal quality
+  static const Map<String, Map<String, dynamic>> _ttsPresets = {
+    'fr-FR': {'speechRate': 0.45, 'pitch': 1.0, 'preferredEngine': 'google'},
+    'ar-SA': {'speechRate': 0.40, 'pitch': 1.0, 'preferredEngine': 'google'}, // Slower for Arabic clarity
+    'en-US': {'speechRate': 0.50, 'pitch': 1.0, 'preferredEngine': 'google'},
+  };
 
   Future<void> _initializeTts() async {
     try {
-      await _tts.setLanguage(_currentLanguage.ttsCode);
-      await _tts.setLanguage(_currentLanguage.ttsCode); // Force current language (French default)
-      await _tts.setSpeechRate(_speechRate);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
+      // Try to use Google TTS engine for higher quality
+      await _selectBestTtsEngine();
+      
+      // Apply language-specific settings
+      await _applyTtsLanguageSettings(_currentLanguage.ttsCode);
 
       _tts.setStartHandler(() async {
         _isSpeaking = true;
@@ -165,18 +231,94 @@ class AccessibilityService extends ChangeNotifier {
       });
 
       _tts.setErrorHandler((msg) {
-        debugPrint('TTS Error: $msg');
+        debugPrint('📢 TTS Error: $msg');
         _isSpeaking = false;
         notifyListeners();
       });
 
       _isTtsInitialized = true;
+      debugPrint('📢 TTS initialized for ${_currentLanguage.ttsCode}');
     } catch (e) {
-      debugPrint('TTS initialization failed: $e');
+      debugPrint('📢 TTS initialization failed: $e');
       _isTtsInitialized = false;
     }
   }
+  
+  /// Select the best available TTS engine (prefer Google)
+  Future<void> _selectBestTtsEngine() async {
+    try {
+      final engines = await _tts.getEngines;
+      if (engines is List && engines.isNotEmpty) {
+        debugPrint('📢 Available TTS engines: $engines');
+        
+        // Prefer Google TTS for higher quality
+        final googleEngine = engines.firstWhere(
+          (e) => e.toString().toLowerCase().contains('google'),
+          orElse: () => null,
+        );
+        
+        if (googleEngine != null) {
+          await _tts.setEngine(googleEngine.toString());
+          debugPrint('📢 Using Google TTS engine');
+        }
+      }
+    } catch (e) {
+      debugPrint('📢 Engine selection failed: $e');
+    }
+  }
+  
+  /// Apply optimized TTS settings for a specific language
+  Future<void> _applyTtsLanguageSettings(String ttsCode) async {
+    final preset = _ttsPresets[ttsCode] ?? _ttsPresets['fr-FR']!;
+    
+    await _tts.setLanguage(ttsCode);
+    await _tts.setSpeechRate(preset['speechRate'] as double);
+    await _tts.setPitch(preset['pitch'] as double);
+    await _tts.setVolume(1.0);
+    
+    // Try to select the best voice for this language
+    await _selectBestVoice(ttsCode);
+  }
+  
+  /// Select the highest quality voice for the language
+  Future<void> _selectBestVoice(String ttsCode) async {
+    try {
+      final voices = await _tts.getVoices;
+      if (voices == null || voices is! List) return;
+      
+      // Filter voices for current language
+      final langCode = ttsCode.split('-')[0];
+      final langVoices = voices.where((v) {
+        final locale = (v as Map)['locale']?.toString() ?? '';
+        return locale.toLowerCase().startsWith(langCode);
+      }).toList();
+      
+      if (langVoices.isEmpty) return;
+      
+      // Prefer network/premium voices
+      final bestVoice = langVoices.firstWhere(
+        (v) {
+          final name = (v as Map)['name']?.toString().toLowerCase() ?? '';
+          return name.contains('network') || 
+                 name.contains('premium') ||
+                 name.contains('enhanced');
+        },
+        orElse: () => langVoices.first,
+      );
+      
+      if (bestVoice != null) {
+        await _tts.setVoice({
+          'name': (bestVoice as Map)['name'],
+          'locale': ttsCode,
+        });
+        debugPrint('📢 Selected voice: ${bestVoice['name']}');
+      }
+    } catch (e) {
+      debugPrint('📢 Voice selection failed: $e');
+    }
+  }
 
+  /// Speak text with optional interruption and text normalization
   Future<void> speak(String message, {bool interrupt = true}) async {
     if (!_voiceGuidanceEnabled || !_isTtsInitialized) return;
     if (_audioNeeds == 'deaf') return; // Don't speak to deaf users
@@ -185,7 +327,32 @@ class AccessibilityService extends ChangeNotifier {
       await _tts.stop();
     }
     
-    await _tts.speak(message);
+    // Normalize text for better pronunciation
+    final normalizedMessage = _normalizeTextForTts(message);
+    
+    await _tts.speak(normalizedMessage);
+  }
+  
+  /// Normalize text for better TTS pronunciation
+  String _normalizeTextForTts(String text) {
+    var normalized = text;
+    
+    // Fix common abbreviations
+    normalized = normalized.replaceAll(RegExp(r'\bRCT\b'), 'R C T');
+    normalized = normalized.replaceAll(RegExp(r'\bKM\b', caseSensitive: false), 'kilomètres');
+    normalized = normalized.replaceAll(RegExp(r'\bkm/h\b', caseSensitive: false), 'kilomètres par heure');
+    normalized = normalized.replaceAll(RegExp(r'\bmin\b'), 'minutes');
+    normalized = normalized.replaceAll(RegExp(r'\bh\b'), 'heures');
+    
+    // Add natural pauses at sentence boundaries
+    if (_currentLanguage.code != 'ar') {
+      // Don't add pauses for Arabic as it reads correctly
+      normalized = normalized.replaceAll('. ', '. ... ');
+      normalized = normalized.replaceAll('! ', '! ... ');
+      normalized = normalized.replaceAll('? ', '? ... ');
+    }
+    
+    return normalized;
   }
 
   Future<void> stopSpeaking() async {
@@ -319,6 +486,62 @@ class AccessibilityService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Word corrections for common misrecognitions by language
+  static const Map<String, Map<String, String>> _wordCorrections = {
+    'fr': {
+      'continu': 'continuer',
+      'francais': 'français',
+      'france': 'français',
+      'ouis': 'oui',
+      'nong': 'non',
+      'arab': 'arabe',
+      'anglai': 'anglais',
+      'suivent': 'suivant',
+      'retours': 'retour',
+      'termine': 'terminer',
+      'fini': 'terminer',
+      'commense': 'commencer',
+      'avugle': 'aveugle',
+      'vibrations': 'vibration',
+      'vocale': 'vocal',
+      'fransi': 'français',
+    },
+    'en': {
+      'continew': 'continue',
+      'nex': 'next',
+      'bak': 'back',
+      'stert': 'start',
+      'yess': 'yes',
+      'noo': 'no',
+      'frensh': 'french',
+      'arebic': 'arabic',
+      'inglish': 'english',
+      'blinde': 'blind',
+      'deff': 'deaf',
+    },
+    'ar': {
+      'متابعه': 'متابعة',
+      'نعمم': 'نعم',
+      'لاا': 'لا',
+    },
+  };
+
+  /// Apply word corrections based on current language
+  String _applyWordCorrections(String text) {
+    final langCode = _currentLanguage.code;
+    final corrections = _wordCorrections[langCode] ?? {};
+    
+    var corrected = text;
+    for (final entry in corrections.entries) {
+      corrected = corrected.replaceAll(
+        RegExp(r'\b' + RegExp.escape(entry.key) + r'\b', caseSensitive: false),
+        entry.value,
+      );
+    }
+    
+    return corrected;
+  }
+
   /// Execute voice command - ACTUALLY CLICK THE BUTTON
   void _executeVoiceCommand(String words) {
     // Debounce to prevent multiple executions for same phrase
@@ -328,11 +551,17 @@ class AccessibilityService extends ChangeNotifier {
     }
     _lastCommandTime = DateTime.now();
 
-    debugPrint('Trying to execute command from: "$words"');
+    // Apply word corrections for better accuracy
+    final correctedWords = _applyWordCorrections(words);
+    
+    debugPrint('🎤 Trying to execute command from: "$words"');
+    if (correctedWords != words) {
+      debugPrint('🎤 Corrected to: "$correctedWords"');
+    }
     
     // Check each registered command
     for (final entry in _voiceCommandCallbacks.entries) {
-      if (words.contains(entry.key)) {
+      if (correctedWords.contains(entry.key)) {
         debugPrint('✅ EXECUTING: ${entry.key}');
         
         // Interrupt immediately!
@@ -347,16 +576,16 @@ class AccessibilityService extends ChangeNotifier {
       }
     }
     
-    // Check for common words in all languages
-    if (_checkYes(words)) {
+    // Check for common words in all languages (also check corrected words)
+    if (_checkYes(correctedWords)) {
       _voiceCommandCallbacks['oui']?.call();
       _voiceCommandCallbacks['yes']?.call();
       _voiceCommandCallbacks['نعم']?.call();
-    } else if (_checkNo(words)) {
+    } else if (_checkNo(correctedWords)) {
       _voiceCommandCallbacks['non']?.call();
       _voiceCommandCallbacks['no']?.call();
       _voiceCommandCallbacks['لا']?.call();
-    } else if (_checkContinue(words)) {
+    } else if (_checkContinue(correctedWords)) {
       _voiceCommandCallbacks['continuer']?.call();
       _voiceCommandCallbacks['continue']?.call();
       _voiceCommandCallbacks['متابعة']?.call();
@@ -386,7 +615,8 @@ class AccessibilityService extends ChangeNotifier {
            words.contains('متابعه');
   }
 
-  String _getConfirmationMessage(String command) {
+  /// Get a localized confirmation message for a command
+  String getConfirmationMessage(String command) {
     switch (_currentLanguage.code) {
       case 'ar':
         return '$command تم اختياره';
@@ -395,6 +625,12 @@ class AccessibilityService extends ChangeNotifier {
       default:
         return '$command sélectionné';
     }
+  }
+  
+  /// Speak a confirmation message for a recognized command
+  Future<void> speakConfirmation(String command) async {
+    final message = getConfirmationMessage(command);
+    await speakWithHaptic(message);
   }
 
   /// Listen for yes/no response
