@@ -108,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: const AICoachButton(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: (80 * textScale).clamp(80.0, 120.0),
