@@ -12,12 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/ai_coach_widget.dart';
 import '../../core/services/accessibility_service.dart';
 import '../chat/widgets/chat_badge_button.dart';
-import '../announcements/screens/announcements_screen.dart';
-import '../announcements/services/announcement_service.dart';
-import '../announcements/models/announcement_model.dart';
-import '../profile/screens/history_screen.dart';
-import '../profile/services/history_service.dart';
-import '../profile/models/history_event_model.dart';
 
 // Translation Helper
 String _T(BuildContext context, String fr, String en, String ar) {
@@ -43,8 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final service = Provider.of<AccessibilityService>(context, listen: false);
-      service.initialize();
       _registerCommands();
     });
   }
@@ -73,14 +65,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _speak(String text) async {
-    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final profile = accessibility.profile;
-    
-    // Only speak if TTS is enabled AND (user needs it OR explicitly enabled)
-    final shouldSpeak = profile.ttsEnabled && 
-                       (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode);
-                       
-    if (shouldSpeak) {
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
       Provider.of<AccessibilityService>(context, listen: false).speak(text);
     }
   }
@@ -236,8 +222,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Stream<QuerySnapshot>? _eventsStream;
-  Stream<List<AnnouncementModel>>? _announcementStream;
-  Stream<List<HistoryEventModel>>? _historyStream;
+  Stream<QuerySnapshot>? _historyStream;
 
   @override
   void initState() {
@@ -261,24 +246,19 @@ class _HomeTabState extends State<_HomeTab> {
         .limit(10)
         .snapshots();
 
-    _announcementStream = AnnouncementService().getAnnouncements();
-
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      _historyStream = HistoryService().getUserHistory(user.uid);
+      _historyStream = FirebaseFirestore.instance
+          .collection('events')
+          .where('participants', arrayContains: user.uid)
+          .snapshots();
     }
   }
 
   Future<void> _speak(String text) async {
     if (!mounted) return;
-    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final profile = accessibility.profile;
-    
-    // Only speak if TTS is enabled AND (user needs it OR explicitly enabled)
-    final shouldSpeak = profile.ttsEnabled && 
-                       (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode);
-
-    if (shouldSpeak) {
+    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
       Provider.of<AccessibilityService>(context, listen: false).speak(text);
     }
   }
@@ -502,6 +482,7 @@ class _HomeTabState extends State<_HomeTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Welcome Card
                     _buildWelcomeCard(
                       firstName: firstName,
                       groupName: _getGroupName(),
@@ -514,82 +495,6 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                     
                     SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
-
-                    // Announcements Section
-                    StreamBuilder<List<AnnouncementModel>>(
-                      stream: _announcementStream,
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) return const SizedBox.shrink();
-                        final announcements = snapshot.data!.take(3).toList();
-                        
-                        return Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _buildSectionHeader(
-                                  icon: Icons.campaign,
-                                  title: _T(context, 'Annonces', 'Announcements', 'إعلانات'),
-                                  textScale: textScale,
-                                  textColor: textColor,
-                                  boldText: boldText,
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnnouncementsScreen())),
-                                  child: Text(_T(context, 'Voir tout', 'See All', 'عرض الكل')),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8 * textScale),
-                            SizedBox(
-                              height: 160 * textScale,
-                              child: PageView.builder(
-                                itemCount: announcements.length,
-                                itemBuilder: (context, index) {
-                                  final item = announcements[index];
-                                  final lang = Provider.of<AccessibilityProvider>(context).languageCode;
-                                  return Card(
-                                    margin: EdgeInsets.only(right: 16, bottom: 8, left: index == 0 ? 0 : 4),
-                                    color: item.priority == 'urgent' ? AppColors.error.withOpacity(0.1) : (highContrast ? Colors.grey[900] : Colors.white),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              if (item.priority == 'urgent') Icon(Icons.warning, color: AppColors.error, size: 20 * textScale),
-                                              if (item.priority == 'urgent') SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  item.getLocalizedTitle(lang),
-                                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale, color: highContrast ? Colors.white : Colors.black87),
-                                                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              if (item.isPinned) Icon(Icons.push_pin, size: 16, color: primaryColor),
-                                            ],
-                                          ),
-                                          SizedBox(height: 8),
-                                          Expanded(
-                                            child: Text(
-                                              item.getLocalizedContent(lang),
-                                              style: TextStyle(fontSize: 14 * textScale, color: highContrast ? Colors.grey[300] : Colors.black54),
-                                              maxLines: 3, overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            SizedBox(height: 24 * textScale),
-                          ],
-                        );
-                      }
-                    ),
 
                     StreamBuilder<QuerySnapshot>(
                       stream: _eventsStream,
@@ -623,46 +528,60 @@ class _HomeTabState extends State<_HomeTab> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // History Section (Attended Events)
-                            StreamBuilder<List<HistoryEventModel>>(
+                            StreamBuilder<QuerySnapshot>(
                               stream: _historyStream,
                               builder: (context, historySnapshot) {
-                                if (!historySnapshot.hasData || historySnapshot.data!.isEmpty) return const SizedBox.shrink();
+                                if (!historySnapshot.hasData) return const SizedBox.shrink();
                                 
-                                final recentHistory = historySnapshot.data!.take(3).toList();
-                                final lang = Provider.of<AccessibilityProvider>(context).languageCode;
+                                final historyEvents = historySnapshot.data!.docs.where((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  final date = (data['date'] as Timestamp).toDate();
+                                  return date.isBefore(DateTime.now());
+                                }).toList();
+                                
+                                historyEvents.sort((a, b) { // Sort desc
+                                  final dateA = (a['date'] as Timestamp).toDate();
+                                  final dateB = (b['date'] as Timestamp).toDate();
+                                  return dateB.compareTo(dateA);
+                                });
+                                
+                                final recentHistory = historyEvents.take(3).toList();
+                                
+                                if (recentHistory.isEmpty) return const SizedBox.shrink();
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _buildSectionHeader(
-                                      icon: Icons.history_edu,
+                                      icon: '📜',
                                       title: _T(context, 'Historique', 'History', 'تاريخ'),
                                       textScale: textScale,
                                       textColor: textColor,
                                       boldText: boldText,
                                     ),
                                     SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                                    ...recentHistory.map((event) {
-                                        final date = event.date;
+                                    ...recentHistory.map((doc) {
+                                        final data = doc.data() as Map<String, dynamic>;
+                                        final date = (data['date'] as Timestamp).toDate();
                                         final timeStr = "${date.day}/${date.month} ${date.year}";
                                         
                                         return Padding(
                                           padding: const EdgeInsets.only(bottom: 12.0),
                                           child: _buildUpcomingEventCard(
-                                            eventId: event.id,
-                                            title: event.getLocalizedTitle(lang),
+                                            eventId: doc.id,
+                                            title: data['title'] ?? '',
                                             date: timeStr,
-                                            time: event.pace, // Display Pace in time/subtitle slot or custom
-                                            location: event.getLocalizedLocation(lang),
-                                            distance: event.distance,
-                                            group: event.participants.toString() + " parts.",
+                                            time: '',
+                                            location: data['location'] ?? '',
+                                            distance: data['distance'] ?? '',
+                                            group: data['group'] ?? '',
                                             groupColor: Colors.grey,
                                             textScale: textScale,
                                             highContrast: highContrast,
                                             boldText: boldText,
                                             textColor: textColor,
                                             secondaryTextColor: secondaryTextColor,
-                                            eventData: {}, // Empty map as we don't have full event data
+                                            eventData: data,
                                           ),
                                         );
                                     }).toList(),
@@ -925,11 +844,11 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Widget _buildSectionHeader({
-    required dynamic icon, // Accepts IconData or String
+    required String icon,
     required String title,
     required double textScale,
     required Color textColor,
-    bool boldText = false,
+    required bool boldText,
   }) {
     return InkWell(
       onTap: () => _speak("$title"),
@@ -937,24 +856,17 @@ class _HomeTabState extends State<_HomeTab> {
         header: true,
         child: Row(
           children: [
-            if (icon is IconData)
-              Icon(
-                icon,
-                size: 24 * textScale,
-                color: textColor,
-              )
-            else
-              Text(
-                icon.toString(),
-                style: TextStyle(fontSize: 20 * textScale),
-              ),
+            Text(
+              icon,
+              style: TextStyle(fontSize: 20 * textScale),
+            ),
             SizedBox(width: 8 * textScale.clamp(1.0, 1.2)),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
                   fontSize: 20 * textScale,
-                  fontWeight: boldText ? FontWeight.w900 : FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                   color: textColor,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -1347,48 +1259,39 @@ class _HomeTabState extends State<_HomeTab> {
             padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
             child: Row(
               children: [
-                // Date Column - Constrained to prevent overflow
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: 80 * textScale.clamp(1.0, 1.2),
+                // Date Column
+                Container(
+                  padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
+                  decoration: BoxDecoration(
+                    color: groupColor.withOpacity(highContrast ? 0.3 : 0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Container(
-                    padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
-                    decoration: BoxDecoration(
-                      color: groupColor.withOpacity(highContrast ? 0.3 : 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          date.split(' ').first,
-                          style: TextStyle(
-                            fontSize: 12 * textScale,
-                            fontWeight: FontWeight.w600,
-                            color: groupColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    children: [
+                      Text(
+                        date.split(' ').first,
+                        style: TextStyle(
+                          fontSize: 12 * textScale,
+                          fontWeight: FontWeight.w600,
+                          color: groupColor,
                         ),
-                        Text(
-                          time,
-                          style: TextStyle(
-                            fontSize: 14 * textScale,
-                            fontWeight: FontWeight.bold,
-                            color: groupColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 14 * textScale,
+                          fontWeight: FontWeight.bold,
+                          color: groupColor,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
-                // Details - Flexible to take remaining space
+                SizedBox(width: 16 * textScale.clamp(1.0, 1.2)),
+                // Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         title,
@@ -1397,8 +1300,6 @@ class _HomeTabState extends State<_HomeTab> {
                           fontWeight: FontWeight.bold,
                           color: textColor,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
                       ),
                       SizedBox(height: 4 * textScale.clamp(1.0, 1.2)),
                       Text(
@@ -1427,13 +1328,11 @@ class _HomeTabState extends State<_HomeTab> {
                             fontWeight: FontWeight.w500,
                             color: groupColor,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                 ),
-                SizedBox(width: 4),
                 // Arrow
                 Icon(
                   Icons.chevron_right,
@@ -1458,23 +1357,30 @@ class _EventsTab extends StatefulWidget {
 }
 
 class _EventsTabState extends State<_EventsTab> {
+  final FlutterTts _tts = FlutterTts();
+
   @override
   void initState() {
     super.initState();
+    _initTTS();
+  }
+
+  Future<void> _initTTS() async {
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('languageCode');
+    
+    String ttsCode = 'fr-FR';
+    if (langCode == 'ar') ttsCode = 'ar-SA';
+    if (langCode == 'en') ttsCode = 'en-US';
+    
+    await _tts.setLanguage(ttsCode);
   }
 
   Future<void> _speak(String text) async {
-    if (!mounted) return;
-    final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
-    final profile = accessibility.profile;
-    
-    // Only speak if TTS is enabled AND (user needs it OR explicitly enabled)
-    final shouldSpeak = profile.ttsEnabled && 
-                       (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode);
-
-    if (shouldSpeak) {
-      Provider.of<AccessibilityService>(context, listen: false).speak(text);
-    }
+    // Unrestricted speech
+    await _tts.setVolume(1.0);
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   Future<void> _toggleRegistration(String eventId, List<dynamic> participants) async {
@@ -1510,6 +1416,7 @@ class _EventsTabState extends State<_EventsTab> {
 
   @override
   void dispose() {
+    _tts.stop();
     super.dispose();
   }
 
@@ -1800,41 +1707,33 @@ class _EventsTabState extends State<_EventsTab> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Date Box - Constrained
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: 80 * textScale.clamp(1.0, 1.2),
+                    // Date Box
+                    Container(
+                      padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: primaryColor.withOpacity(0.5)),
                       ),
-                      child: Container(
-                        padding: EdgeInsets.all(12 * textScale.clamp(1.0, 1.2)),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: primaryColor.withOpacity(0.5)),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "${date.day}",
-                              style: TextStyle(
-                                fontSize: 20 * textScale,
-                                fontWeight: FontWeight.bold,
-                                color: primaryColor,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        children: [
+                          Text(
+                            "${date.day}",
+                            style: TextStyle(
+                              fontSize: 20 * textScale,
+                              fontWeight: FontWeight.bold,
+                              color: primaryColor,
                             ),
-                            Text(
-                              _getMonthName(context, date.month),
-                              style: TextStyle(
-                                fontSize: 12 * textScale,
-                                fontWeight: FontWeight.bold,
-                                color: primaryColor,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _getMonthName(context, date.month),
+                            style: TextStyle(
+                              fontSize: 12 * textScale,
+                              fontWeight: FontWeight.bold,
+                              color: primaryColor,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     SizedBox(width: 16 * textScale.clamp(1.0, 1.2)),
@@ -1850,8 +1749,6 @@ class _EventsTabState extends State<_EventsTab> {
                               fontWeight: FontWeight.bold,
                               color: textColor,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
                           SizedBox(height: 4 * textScale.clamp(1.0, 1.2)),
                           Row(
@@ -2298,27 +2195,8 @@ class _ProfileTabState extends State<_ProfileTab> {
             ),
           ),
 
-          SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
-          
 
            SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
-
-          // History Button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
-              icon: Icon(Icons.history, color: highContrast ? Colors.black : Colors.white),
-              label: Text(_T(context, "Historique Complet", "Full History", "السجل الكامل"), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16 * textScale)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: highContrast ? AppColors.highContrastPrimary : primaryColor,
-                foregroundColor: highContrast ? Colors.black : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ),
-          SizedBox(height: 32 * textScale.clamp(1.0, 1.2)),
 
           // Logout
           SizedBox(
