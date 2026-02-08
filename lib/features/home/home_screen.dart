@@ -225,17 +225,36 @@ class _HomeTabState extends State<_HomeTab> {
 
   Stream<QuerySnapshot>? _eventsStream;
   Stream<QuerySnapshot>? _historyStream;
+  final FlutterTts _flutterTts = FlutterTts();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
     _initStreams();
+    _initTts();
     
     // Ensure we have the latest profile for this user
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AccessibilityProvider>(context, listen: false).loadProfile();
+      _speakPageTitle();
     });
+  }
+
+  Future<void> _initTts() async {
+    await _flutterTts.setLanguage("fr-FR"); // Default
+    await _flutterTts.setSpeechRate(0.5);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+  }
+
+  Future<void> _speakPageTitle() async {
+    final languageCode = Provider.of<AccessibilityProvider>(context, listen: false).languageCode;
+    String title = "Accueil";
+    if (languageCode == 'en') title = "Home";
+    if (languageCode == 'ar') title = "الصفحة الرئيسية";
+    
+    await _speak(title);
   }
 
   void _initStreams() {
@@ -262,10 +281,45 @@ class _HomeTabState extends State<_HomeTab> {
 
   Future<void> _speak(String text) async {
     if (!mounted) return;
-    final profile = Provider.of<AccessibilityProvider>(context, listen: false).profile;
+    
+    final provider = Provider.of<AccessibilityProvider>(context, listen: false);
+    final profile = provider.profile;
+    
+    // Only speak if user needs it
     if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.dyslexicMode) {
-      Provider.of<AccessibilityService>(context, listen: false).speak(text);
+      // Configure language on the fly based on provider
+      String lang = "fr-FR";
+      if (provider.languageCode == 'en') lang = "en-US";
+      if (provider.languageCode == 'ar') lang = "ar-SA";
+      
+      await _flutterTts.setLanguage(lang);
+      await _flutterTts.speak(text);
     }
+  }
+
+  /// Wrapper widget that announces content when touched (for blind users)
+  Widget _buildTalkBackWrapper({
+    required Widget child,
+    required String announcement,
+    VoidCallback? onTap,
+    VoidCallback? onLongPress,
+  }) {
+    return GestureDetector(
+      onTapDown: (_) {
+        final accessibility = Provider.of<AccessibilityProvider>(context, listen: false);
+        if (accessibility.profile.visualNeeds == 'blind') {
+          _speak(announcement);
+        }
+      },
+      onTap: onTap,
+      onLongPress: onLongPress ?? () => _speak(announcement),
+      child: Semantics(
+        label: announcement,
+        onTap: onTap,
+        onLongPress: () => _speak(announcement),
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -634,153 +688,158 @@ class _HomeTabState extends State<_HomeTab> {
     required bool boldText,
     required Color primaryColor,
   }) {
-    return Semantics(
-      label: "Carte de bienvenue. Bienvenue $firstName. Groupe $groupName. Membre depuis $memberSince.",
-      container: true,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          border: highContrast 
-              ? Border.all(color: primaryColor, width: 2) 
-              : Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-          boxShadow: highContrast ? null : [
-            BoxShadow(
-              color: primaryColor.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+    final welcomeText = "Bienvenue $firstName. Groupe $groupName. Membre depuis $memberSince.";
+    
+    return GestureDetector(
+      onLongPress: () => _speak(welcomeText),
+      child: Semantics(
+        label: "Carte de bienvenue. $welcomeText",
+        container: true,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: highContrast 
+                ? Border.all(color: primaryColor, width: 2) 
+                : Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+            boxShadow: highContrast ? null : [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+            image: highContrast ? null : const DecorationImage(
+              image: AssetImage('assets/image1.jpg'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
             ),
-          ],
-          image: highContrast ? null : const DecorationImage(
-            image: AssetImage('assets/image1.jpg'),
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+            color: highContrast ? AppColors.highContrastSurface : primaryColor,
           ),
-          color: highContrast ? AppColors.highContrastSurface : primaryColor,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              // Gradient Overlay for readability
-              if (!highContrast)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          primaryColor.withOpacity(0.3),
-                          Colors.black.withOpacity(0.8),
-                        ],
-                        stops: const [0.0, 0.9],
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                // Gradient Overlay for readability
+                if (!highContrast)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            primaryColor.withOpacity(0.3),
+                            Colors.black.withOpacity(0.8),
+                          ],
+                          stops: const [0.0, 0.9],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                
-              Padding(
-                padding: EdgeInsets.all(24 * textScale.clamp(1.0, 1.2)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
+                  
+                Padding(
+                  padding: EdgeInsets.all(24 * textScale.clamp(1.0, 1.2)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: Colors.black26, blurRadius: 8)
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 28 * textScale.clamp(1.0, 1.2),
+                              backgroundColor: Colors.grey.shade200,
+                              backgroundImage: const AssetImage('assets/logo.jpg'), // Use logo or user image
+                              onBackgroundImageError: (_, __) {},
+                              child: const Icon(Icons.person, color: Colors.grey),
+                            ),
+                          ),
+                          SizedBox(width: 16 * textScale.clamp(1.0, 1.2)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _T(context, 'Bonjour', 'Hello', 'مرحباً'),
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16 * textScale,
+                                    fontWeight: FontWeight.w500,
+                                    shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
+                                  ),
+                                ),
+                                Text(
+                                  firstName,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28 * textScale,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.1,
+                                    shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                      
+                      // Stats / Info Row
+                      Wrap(
+                        spacing: 12 * textScale.clamp(1.0, 1.2),
+                        runSpacing: 8 * textScale.clamp(1.0, 1.2),
+                        children: [
+                          _buildGlassBadge(
+                            icon: Icons.groups, 
+                            text: groupName, 
+                            color: highContrast ? groupColor : Colors.white,
+                            bgColor: highContrast ? groupColor.withOpacity(0.2) : Colors.white.withOpacity(0.2),
+                            textScale: textScale,
+                            borderColor: highContrast ? groupColor : Colors.white30,
+                          ),
+                          _buildGlassBadge(
+                            icon: Icons.calendar_month, 
+                            text: memberSince.split(' ').last, // Just Year
                             color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(color: Colors.black26, blurRadius: 8)
-                            ],
+                            bgColor: Colors.white.withOpacity(0.1),
+                            textScale: textScale,
+                            borderColor: Colors.white12,
                           ),
-                          child: CircleAvatar(
-                            radius: 28 * textScale.clamp(1.0, 1.2),
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: const AssetImage('assets/logo.jpg'), // Use logo or user image
-                            onBackgroundImageError: (_, __) {},
-                            child: const Icon(Icons.person, color: Colors.grey),
-                          ),
-                        ),
-                        SizedBox(width: 16 * textScale.clamp(1.0, 1.2)),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _T(context, 'Bonjour', 'Hello', 'مرحباً'),
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 16 * textScale,
-                                  fontWeight: FontWeight.w500,
-                                  shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
-                                ),
-                              ),
-                              Text(
-                                firstName,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28 * textScale,
-                                  fontWeight: FontWeight.bold,
-                                  height: 1.1,
-                                  shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
-                    
-                    // Stats / Info Row
-                    Wrap(
-                      spacing: 12 * textScale.clamp(1.0, 1.2),
-                      runSpacing: 8 * textScale.clamp(1.0, 1.2),
-                      children: [
-                        _buildGlassBadge(
-                          icon: Icons.groups, 
-                          text: groupName, 
-                          color: highContrast ? groupColor : Colors.white,
-                          bgColor: highContrast ? groupColor.withOpacity(0.2) : Colors.white.withOpacity(0.2),
-                          textScale: textScale,
-                          borderColor: highContrast ? groupColor : Colors.white30,
-                        ),
-                        _buildGlassBadge(
-                          icon: Icons.calendar_month, 
-                          text: memberSince.split(' ').last, // Just Year
-                          color: Colors.white,
-                          bgColor: Colors.white.withOpacity(0.1),
-                          textScale: textScale,
-                          borderColor: Colors.white12,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Decorative Shine
-              if (!highContrast)
-                Positioned(
-                  top: -50,
-                  right: -50,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.1),
-                      boxShadow: [
-                        BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 50, spreadRadius: 10)
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-            ],
+                
+                // Decorative Shine
+                if (!highContrast)
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.1),
+                        boxShadow: [
+                          BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 50, spreadRadius: 10)
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1141,17 +1200,26 @@ class _HomeTabState extends State<_HomeTab> {
     required bool highContrast,
     required VoidCallback onTap,
   }) {
+    final accessibility = Provider.of<AccessibilityProvider>(context);
+    final isBlind = accessibility.profile.visualNeeds == 'blind';
+    final ttsMessage = "${_T(context, 'Bouton', 'Button', 'زر')} : $label";
+    
     return Semantics(
       button: true,
       label: label,
+      onTap: () {
+        _speak(ttsMessage);
+        onTap();
+      },
+      onLongPress: () => _speak(ttsMessage),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: GestureDetector(
           onTap: () {
-            _speak("Action rapide : $label");
+            if (isBlind) _speak(ttsMessage);
             onTap();
           },
-          borderRadius: BorderRadius.circular(16),
+          onLongPress: () => _speak(ttsMessage),
           child: Container(
             padding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.2)),
             decoration: BoxDecoration(
@@ -1174,7 +1242,7 @@ class _HomeTabState extends State<_HomeTab> {
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.w600,
-                      fontSize: 12 * textScale,
+                      fontSize: 14 * textScale,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1186,6 +1254,7 @@ class _HomeTabState extends State<_HomeTab> {
       ),
     );
   }
+
 
   Widget _buildUpcomingEventCard({
     required String eventId,

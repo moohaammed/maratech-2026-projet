@@ -99,25 +99,35 @@ class AnnouncementsScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${item.author} • ${_formatDate(item.timestamp, langCode)}',
-                  style: TextStyle(
-                    fontSize: 12 * textScale,
-                    color: Colors.grey,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                Flexible(
+                  flex: 2,
                   child: Text(
-                    item.group,
+                    '${item.author} • ${_formatDate(item.timestamp, langCode)}',
                     style: TextStyle(
                       fontSize: 12 * textScale,
-                      color: primary,
-                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      item.group,
+                      style: TextStyle(
+                        fontSize: 12 * textScale,
+                        color: primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),

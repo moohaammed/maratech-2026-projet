@@ -411,6 +411,69 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
   
+  /// Convert spoken numbers to digits (French, English, Arabic)
+  String _convertSpokenNumbersToDigits(String text) {
+    String result = text.toLowerCase();
+    
+    // French numbers
+    final frenchNumbers = {
+      'zéro': '0', 'zero': '0',
+      'un': '1', 'une': '1',
+      'deux': '2',
+      'trois': '3',
+      'quatre': '4',
+      'cinq': '5',
+      'six': '6',
+      'sept': '7',
+      'huit': '8',
+      'neuf': '9',
+    };
+    
+    // English numbers
+    final englishNumbers = {
+      'zero': '0',
+      'one': '1',
+      'two': '2',
+      'three': '3',
+      'four': '4',
+      'five': '5',
+      'six': '6',
+      'seven': '7',
+      'eight': '8',
+      'nine': '9',
+    };
+    
+    // Arabic numbers
+    final arabicNumbers = {
+      'صفر': '0',
+      'واحد': '1',
+      'اثنان': '2', 'اثنين': '2',
+      'ثلاثة': '3',
+      'أربعة': '4', 'اربعة': '4',
+      'خمسة': '5',
+      'ستة': '6',
+      'سبعة': '7',
+      'ثمانية': '8',
+      'تسعة': '9',
+    };
+    
+    // Replace all spoken numbers with digits
+    frenchNumbers.forEach((word, digit) {
+      result = result.replaceAll(word, digit);
+    });
+    
+    englishNumbers.forEach((word, digit) {
+      result = result.replaceAll(word, digit);
+    });
+    
+    arabicNumbers.forEach((word, digit) {
+      result = result.replaceAll(word, digit);
+    });
+    
+    // Extract only digits
+    return result.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
   Future<void> _listenForPin() async {
     if (!_speechAvailable || !mounted) return;
     
@@ -436,12 +499,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           
           debugPrint("🎤 Heard PIN: '$words'");
           
-          // Extract digits from speech
-          final digits = words.replaceAll(RegExp(r'[^0-9]'), '');
+          // Convert spoken numbers to digits (e.g., "one one one" -> "111")
+          final digits = _convertSpokenNumbersToDigits(words);
           
           if (digits.isNotEmpty) {
             final pin = digits.length > 3 ? digits.substring(0, 3) : digits;
             setState(() => _pinController.text = pin);
+            debugPrint("✅ PIN converted: '$words' -> '$pin'");
           }
           
           if (result.finalResult) {
@@ -649,7 +713,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() => _isLoading = false);
         String message = 'Erreur de connexion.';
-        if (e.code == 'wrong-password' || e.code == 'invalid-credential') message = 'Code PIN incorrect.';
+        if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+          message = 'Code PIN incorrect.';
+          debugPrint("❌ Auth Error: ${e.code}");
+          _showErrorSnackBar(message);
+          await _speak(_T(
+            "Code PIN incorrect. Répétez les 3 chiffres de votre code.",
+            "Wrong PIN code. Repeat your 3-digit code.",
+            "رمز PIN خاطئ. كرر أرقام الرمز الثلاثة."
+          ));
+          // Clear PIN and retry
+          _pinController.clear();
+          await Future.delayed(const Duration(seconds: 3));
+          if (mounted) _listenForPin();
+          return;
+        }
         if (e.code == 'user-not-found') message = 'Utilisateur non trouvé.';
         
         debugPrint("❌ Auth Error: ${e.code}");

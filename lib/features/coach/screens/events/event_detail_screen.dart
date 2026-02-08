@@ -285,42 +285,45 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: groupColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: groupColor.withOpacity(0.3)),
-              ),
-              child: Text(
-                event.groupDisplayName.toUpperCase(),
-                style: TextStyle(
-                  color: groupColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12 * textScale,
-                  letterSpacing: 1,
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: groupColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: groupColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  event.groupDisplayName.toUpperCase(),
+                  style: TextStyle(
+                    color: groupColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12 * textScale,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                event.typeDisplayName,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12 * textScale,
-                  fontWeight: FontWeight.w500,
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  event.typeDisplayName,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12 * textScale,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         SizedBox(height: 16 * textScale),
         Hero(
