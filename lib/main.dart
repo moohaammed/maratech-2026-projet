@@ -20,6 +20,8 @@ import 'features/notifications/screens/notification_screen.dart';
 import 'features/coach/screens/events/event_detail_screen.dart';
 import 'features/coach/screens/coach_dashboard_screen.dart';
 import 'features/chat/screens/group_chat_screen.dart';
+import 'features/announcements/screens/announcements_screen.dart';
+import 'features/profile/screens/history_screen.dart';
 
 // Theme
 import 'core/theme/app_theme.dart';
@@ -109,6 +111,8 @@ class RctApp extends StatelessWidget {
         '/notifications': (context) => const NotificationScreen(),
         '/coach-dashboard': (context) => const CoachDashboardScreen(),
         '/group-chat': (context) => const GroupChatScreen(),
+        '/announcements': (context) => const AnnouncementsScreen(),
+        '/history': (context) => const HistoryScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/event-details') {

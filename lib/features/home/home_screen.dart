@@ -12,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/ai_coach_widget.dart';
 import '../../core/services/accessibility_service.dart';
 import '../chat/widgets/chat_badge_button.dart';
+import '../profile/services/history_service.dart';
+import '../profile/models/history_event_model.dart';
 
 // Translation Helper
 String _T(BuildContext context, String fr, String en, String ar) {
@@ -249,8 +251,11 @@ class _HomeTabState extends State<_HomeTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _historyStream = FirebaseFirestore.instance
-          .collection('events')
-          .where('participants', arrayContains: user.uid)
+          .collection('users')
+          .doc(user.uid)
+          .collection('history')
+          .orderBy('date', descending: true)
+          .limit(3)
           .snapshots();
     }
   }
@@ -496,6 +501,14 @@ class _HomeTabState extends State<_HomeTab> {
                     
                     SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
 
+                    _buildQuickActions(
+                      textScale: textScale,
+                      highContrast: highContrast,
+                      boldText: boldText,
+                    ),
+
+                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+
                     StreamBuilder<QuerySnapshot>(
                       stream: _eventsStream,
                       builder: (context, snapshot) {
@@ -552,40 +565,7 @@ class _HomeTabState extends State<_HomeTab> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildSectionHeader(
-                                      icon: '📜',
-                                      title: _T(context, 'Historique', 'History', 'تاريخ'),
-                                      textScale: textScale,
-                                      textColor: textColor,
-                                      boldText: boldText,
-                                    ),
-                                    SizedBox(height: 12 * textScale.clamp(1.0, 1.2)),
-                                    ...recentHistory.map((doc) {
-                                        final data = doc.data() as Map<String, dynamic>;
-                                        final date = (data['date'] as Timestamp).toDate();
-                                        final timeStr = "${date.day}/${date.month} ${date.year}";
-                                        
-                                        return Padding(
-                                          padding: const EdgeInsets.only(bottom: 12.0),
-                                          child: _buildUpcomingEventCard(
-                                            eventId: doc.id,
-                                            title: data['title'] ?? '',
-                                            date: timeStr,
-                                            time: '',
-                                            location: data['location'] ?? '',
-                                            distance: data['distance'] ?? '',
-                                            group: data['group'] ?? '',
-                                            groupColor: Colors.grey,
-                                            textScale: textScale,
-                                            highContrast: highContrast,
-                                            boldText: boldText,
-                                            textColor: textColor,
-                                            secondaryTextColor: secondaryTextColor,
-                                            eventData: data,
-                                          ),
-                                        );
-                                    }).toList(),
-                                    SizedBox(height: 24 * textScale.clamp(1.0, 1.2)),
+                                    
                                   ],
                                 );
                               }
@@ -1127,16 +1107,6 @@ class _HomeTabState extends State<_HomeTab> {
   }) {
     return Row(
       children: [
-        Expanded(
-          child: _buildQuickAction(
-            icon: Icons.event,
-            label: _T(context, 'Événements', 'Events', 'أحداث'),
-            color: highContrast ? AppColors.highContrastPrimary : AppColors.primary,
-            textScale: textScale,
-            highContrast: highContrast,
-            onTap: () {},
-          ),
-        ),
         SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
         Expanded(
           child: _buildQuickAction(
@@ -1145,7 +1115,7 @@ class _HomeTabState extends State<_HomeTab> {
             color: highContrast ? Colors.cyan : AppColors.success,
             textScale: textScale,
             highContrast: highContrast,
-            onTap: () {},
+            onTap: () => Navigator.pushNamed(context, '/history'),
           ),
         ),
         SizedBox(width: 12 * textScale.clamp(1.0, 1.2)),
@@ -1156,7 +1126,7 @@ class _HomeTabState extends State<_HomeTab> {
             color: highContrast ? Colors.yellow : AppColors.warning,
             textScale: textScale,
             highContrast: highContrast,
-            onTap: () {},
+            onTap: () => Navigator.pushNamed(context, '/announcements'),
           ),
         ),
       ],
