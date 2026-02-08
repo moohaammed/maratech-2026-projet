@@ -486,15 +486,24 @@ class _HomeTabState extends State<_HomeTab> {
 
               return Stack(
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.notifications_outlined,
-                      size: 26 * textScale.clamp(1.0, 1.2),
-                    ),
-                    onPressed: () {
+                  Semantics(
+                    button: true,
+                    label: _T(context, 'Notifications', 'Notifications', 'الإشعارات'),
+                    onTap: () {
+                      _speak(_T(context, 'Notifications', 'Notifications', 'الإشعارات'));
                       Navigator.pushNamed(context, '/notifications');
                     },
-                    tooltip: 'Notifications',
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.notifications_outlined,
+                        size: 26 * textScale.clamp(1.0, 1.2),
+                      ),
+                      onPressed: () {
+                        _speak(_T(context, 'Notifications', 'Notifications', 'الإشعارات'));
+                        Navigator.pushNamed(context, '/notifications');
+                      },
+                      tooltip: _T(context, 'Notifications', 'Notifications', 'الإشعارات'),
+                    ),
                   ),
                   if (count > 0)
                     Positioned(
@@ -1216,7 +1225,7 @@ class _HomeTabState extends State<_HomeTab> {
         color: Colors.transparent,
         child: GestureDetector(
           onTap: () {
-            if (isBlind) _speak(ttsMessage);
+            _speak(ttsMessage);
             onTap();
           },
           onLongPress: () => _speak(ttsMessage),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/notification_service.dart';
 import '../../accessibility/providers/accessibility_provider.dart';
@@ -16,11 +17,39 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
+  final FlutterTts _flutterTts = FlutterTts();
+
   @override
   void initState() {
     super.initState();
-    // Réinitialiser le badge quand l'utilisateur ouvre les notifications
     NotificationService.resetBadge();
+    _initTts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       if (mounted) {
+         _speak(_T(context, 'Notifications', 'Notifications', 'الإشعارات'));
+       }
+    });
+  }
+
+  Future<void> _initTts() async {
+    await _flutterTts.setLanguage("fr-FR");
+    await _flutterTts.setSpeechRate(0.5);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+  }
+
+  Future<void> _speak(String text) async {
+    final provider = Provider.of<AccessibilityProvider>(context, listen: false);
+    final profile = provider.profile;
+
+    if (profile.visualNeeds == 'blind' || profile.visualNeeds == 'low_vision' || profile.ttsEnabled) {
+      String lang = "fr-FR";
+      if (provider.languageCode == 'en') lang = "en-US";
+      if (provider.languageCode == 'ar') lang = "ar-SA";
+      
+      await _flutterTts.setLanguage(lang);
+      await _flutterTts.speak(text);
+    }
   }
 
   @override
@@ -104,6 +133,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 textScale: textScale,
                 highContrast: highContrast,
                 primaryColor: primaryColor,
+                onSpeak: _speak,
               );
             },
           );
@@ -145,6 +175,7 @@ class _NotificationTile extends StatelessWidget {
   final double textScale;
   final bool highContrast;
   final Color primaryColor;
+  final Function(String) onSpeak;
 
   const _NotificationTile({
     required this.eventId,
@@ -157,6 +188,7 @@ class _NotificationTile extends StatelessWidget {
     required this.textScale,
     required this.highContrast,
     required this.primaryColor,
+    required this.onSpeak,
   });
 
   @override
@@ -164,98 +196,97 @@ class _NotificationTile extends StatelessWidget {
     final iconColor = type == 'weekly' ? AppColors.accent : AppColors.primary;
     final itemBgColor = highContrast ? AppColors.highContrastSurface : Colors.white;
     final borderColor = highContrast ? Colors.white24 : Colors.grey.withOpacity(0.1);
+    
+    final speakText = "$title. $body. $time. $date.";
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: itemBgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-        boxShadow: highContrast ? null : [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Navigator.pushNamed(
-              context,
-              '/event-details',
-              arguments: eventId,
-            );
-          },
+    return GestureDetector(
+      onTap: () {
+        onSpeak(speakText);
+        Navigator.pushNamed(
+          context,
+          '/event-details',
+          arguments: eventId,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: itemBgColor,
           borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    type == 'weekly' ? Icons.star : Icons.run_circle,
-                    color: iconColor,
-                    size: 24 * textScale.clamp(1.0, 1.2),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 16 * textScale,
-                                fontWeight: FontWeight.bold,
-                                color: highContrast ? Colors.white : AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            time,
-                            style: TextStyle(
-                              fontSize: 12 * textScale,
-                              color: highContrast ? Colors.white70 : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        body,
-                        style: TextStyle(
-                          fontSize: 14 * textScale,
-                          color: highContrast ? Colors.white70 : AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        date,
-                        style: TextStyle(
-                          fontSize: 11 * textScale,
-                          fontWeight: FontWeight.w500,
-                          color: iconColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          border: Border.all(color: borderColor),
+          boxShadow: highContrast ? null : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  type == 'weekly' ? Icons.star : Icons.run_circle,
+                  color: iconColor,
+                  size: 24 * textScale.clamp(1.0, 1.2),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 16 * textScale,
+                              fontWeight: FontWeight.bold,
+                              color: highContrast ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          time,
+                          style: TextStyle(
+                            fontSize: 12 * textScale,
+                            color: highContrast ? Colors.white70 : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      body,
+                      style: TextStyle(
+                        fontSize: 14 * textScale,
+                        color: highContrast ? Colors.white70 : AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      date,
+                      style: TextStyle(
+                        fontSize: 11 * textScale,
+                        fontWeight: FontWeight.w500,
+                        color: iconColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

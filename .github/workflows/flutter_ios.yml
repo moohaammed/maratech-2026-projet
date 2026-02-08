@@ -1,0 +1,54 @@
+name: Flutter iOS Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Enable iOS platform
+        run: |
+          flutter create .
+          # Update minimum iOS version in Podfile if necessary.
+          # We use || true to prevent failure if Podfile doesn't exist yet (though flutter create should generate it if needed).
+          # The sed syntax for macOS is sed -i '' ...
+          if [ -f "ios/Podfile" ]; then
+            sed -i '' "s/platform :ios, '.*'/platform :ios, '13.0'/" ios/Podfile
+          else
+             echo "Podfile not found, skipping sed."
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Create IPA
+        run: |
+          mkdir Payload
+          # The path to the built app might vary slightly depending on build configuration, but for --release --no-codesign it should be here:
+          mv build/ios/iphoneos/Runner.app Payload
+          zip -r Runner.ipa Payload
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-ipa
+          path: Runner.ipa
