@@ -2,9 +2,9 @@ name: Flutter iOS Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "integrate-kadi" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "integrate-kadi" ]
 
 jobs:
   build-ios:
