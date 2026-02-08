@@ -84,57 +84,64 @@ class _EventListScreenState extends State<EventListScreen>
     final surfaceColor = highContrast ? AppColors.highContrastSurface : const Color(0xFF1A1A24);
     final textColor = highContrast ? Colors.white : Colors.white;
 
-    Widget content = Column(
-      children: [
+    Widget content = CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
         // Search and Filters
-        _buildSearchAndFilters(textScale, primaryColor, surfaceColor, textColor, highContrast),
+        SliverToBoxAdapter(
+          child: _buildSearchAndFilters(textScale, primaryColor, surfaceColor, textColor, highContrast),
+        ),
         
         // Events List
-        Expanded(
-          child: StreamBuilder<List<EventModel>>(
-            stream: _eventService.getEventsStream(
-              fromDate: widget.showPastOnly ? null : _filterFrom,
-              toDate: widget.showPastOnly ? DateTime.now() : _filterTo,
-              group: _filterGroup,
-            ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _buildLoadingState(primaryColor);
-              }
-              if (snapshot.hasError) {
-                return _buildErrorState(snapshot.error.toString(), primaryColor);
-              }
-
-              var events = snapshot.data ?? [];
-              
-              // Filter by search query
-              if (_searchQuery.isNotEmpty) {
-                events = events.where((e) =>
-                    e.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                    e.location.toLowerCase().contains(_searchQuery.toLowerCase())
-                ).toList();
-              }
-              
-              // Filter past events if needed
-              if (widget.showPastOnly) {
-                events = events.where((e) => e.date.isBefore(DateTime.now())).toList();
-              }
-
-              if (events.isEmpty) {
-                return _buildEmptyState(primaryColor, textScale);
-              }
-
-              return ListView.builder(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, widget.canCreate ? 100 : 24),
-                physics: const BouncingScrollPhysics(),
-                itemCount: events.length,
-                itemBuilder: (context, index) {
-                  final event = events[index];
-                  return _buildAnimatedEventCard(context, event, index, textScale, highContrast);
-                },
-              );
-            },
+        StreamBuilder<List<EventModel>>(
+          stream: _eventService.getEventsStream(
+            fromDate: widget.showPastOnly ? null : _filterFrom,
+            toDate: widget.showPastOnly ? DateTime.now() : _filterTo,
+            group: _filterGroup,
           ),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return SliverToBoxAdapter(child: _buildLoadingState(primaryColor));
+            }
+            if (snapshot.hasError) {
+              return SliverToBoxAdapter(child: _buildErrorState(snapshot.error.toString(), primaryColor));
+            }
+
+            var events = snapshot.data ?? [];
+            
+            // Filter by search query
+            if (_searchQuery.isNotEmpty) {
+              events = events.where((e) =>
+                  e.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                  e.location.toLowerCase().contains(_searchQuery.toLowerCase())
+              ).toList();
+            }
+            
+            // Filter past events if needed
+            if (widget.showPastOnly) {
+              events = events.where((e) => e.date.isBefore(DateTime.now())).toList();
+            }
+
+            if (events.isEmpty) {
+              return SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildEmptyState(primaryColor, textScale),
+              );
+            }
+
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, widget.canCreate ? 100 : 24),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final event = events[index];
+                    return _buildAnimatedEventCard(context, event, index, textScale, highContrast);
+                  },
+                  childCount: events.length,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -255,7 +262,11 @@ class _EventListScreenState extends State<EventListScreen>
                         },
                       )
                     : null,
+                filled: true,
+                fillColor: surfaceColor,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),

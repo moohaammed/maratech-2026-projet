@@ -8,6 +8,8 @@ import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../../admin/models/user_model.dart';
 import '../../../accessibility/providers/accessibility_provider.dart';
+import '../../../../core/widgets/map_picker_widget.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Premium Create Event Screen with stunning glassmorphic design
 class CreateEventScreen extends StatefulWidget {
@@ -30,6 +32,8 @@ class _CreateEventScreenState extends State<CreateEventScreen>
   WeeklyEventSubType _weeklySubType = WeeklyEventSubType.longRun;
   RunningGroup? _selectedGroup = RunningGroup.group1;
   DateTime _selectedDate = DateTime.now();
+  double? _latitude;
+  double? _longitude;
   bool _isLoading = false;
   int _currentStep = 0;
 
@@ -428,7 +432,39 @@ class _CreateEventScreenState extends State<CreateEventScreen>
         primaryColor: primaryColor,
         cardColor: cardColor,
         textScale: textScale,
+        suffixIcon: IconButton(
+          icon: Icon(Icons.map_rounded, color: primaryColor),
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MapPickerScreen(
+                  initialLocation: _latitude != null && _longitude != null
+                      ? LatLng(_latitude!, _longitude!)
+                      : const LatLng(36.8065, 10.1815), // Default to Tunis
+                ),
+              ),
+            );
+
+            if (result != null) {
+              setState(() {
+                _locationController.text = result['address'];
+                _latitude = result['latitude'];
+                _longitude = result['longitude'];
+              });
+            }
+          },
+        ),
       ),
+      
+      if (_latitude != null && _longitude != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8, left: 4),
+          child: Text(
+            'Coordonnées collectées: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}',
+            style: TextStyle(color: AppColors.success, fontSize: 10 * textScale),
+          ),
+        ),
       
       SizedBox(height: 16 * textScale),
       
@@ -460,6 +496,7 @@ class _CreateEventScreenState extends State<CreateEventScreen>
     required Color primaryColor,
     required Color cardColor,
     required double textScale,
+    Widget? suffixIcon,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,9 +538,14 @@ class _CreateEventScreenState extends State<CreateEventScreen>
             style: TextStyle(color: Colors.white, fontSize: 15 * textScale),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.grey[600]),
+              hintStyle: TextStyle(color: Colors.grey[500]),
               prefixIcon: Icon(icon, color: primaryColor, size: 22),
+              suffixIcon: suffixIcon,
+              filled: true,
+              fillColor: Colors.transparent,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
               contentPadding: EdgeInsets.all(16 * textScale.clamp(1.0, 1.1)),
             ),
             validator: isRequired
@@ -1134,6 +1176,8 @@ class _CreateEventScreenState extends State<CreateEventScreen>
       date: DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
       time: _timeController.text.trim().isEmpty ? '09:00' : _timeController.text.trim(),
       location: _locationController.text.trim(),
+      latitude: _latitude,
+      longitude: _longitude,
       distanceKm: distanceKm,
       createdAt: DateTime.now(),
       createdBy: FirebaseAuth.instance.currentUser?.uid,

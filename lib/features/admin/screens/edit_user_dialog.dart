@@ -48,8 +48,12 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
+    const bgColor = Color(0xFF1E1E2C);
+    
     return Dialog(
+      backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -58,13 +62,17 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
           children: [
             Text(
               'Modifier l\'utilisateur',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 16),
             TabBar(
               controller: _tabController,
               labelColor: AppColors.primary,
               unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.primary,
               tabs: const [
                 Tab(text: 'Infos'),
                 Tab(text: 'Rôle'),
@@ -88,7 +96,7 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Annuler'),
+                  child: const Text('Annuler', style: TextStyle(color: Colors.grey)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
@@ -105,25 +113,56 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
   }
 
   Widget _buildInfoTab() {
+    const inputColor = Color(0xFF2A2A35);
+    const textColor = Colors.white;
+    const hintColor = Colors.grey;
+    
     return Form(
       key: _formKey,
       child: ListView(
         children: [
           TextFormField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Nom complet', prefixIcon: Icon(Icons.person)),
+            style: const TextStyle(color: textColor),
+            decoration: InputDecoration(
+              labelText: 'Nom complet', 
+              labelStyle: const TextStyle(color: hintColor),
+              prefixIcon: const Icon(Icons.person, color: hintColor),
+              filled: true,
+              fillColor: inputColor,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            ),
             validator: (v) => v!.isEmpty ? 'Requis' : null,
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _emailController,
-            decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
+            style: const TextStyle(color: textColor),
+            decoration: InputDecoration(
+              labelText: 'Email', 
+              labelStyle: const TextStyle(color: hintColor),
+              prefixIcon: const Icon(Icons.email, color: hintColor),
+              filled: true,
+              fillColor: inputColor,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            ),
             validator: (v) => v!.contains('@') ? null : 'Invalide',
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _phoneController,
-            decoration: const InputDecoration(labelText: 'Téléphone', prefixIcon: Icon(Icons.phone)),
+            style: const TextStyle(color: textColor),
+            decoration: InputDecoration(
+              labelText: 'Téléphone', 
+              labelStyle: const TextStyle(color: hintColor),
+              prefixIcon: const Icon(Icons.phone, color: hintColor),
+              filled: true,
+              fillColor: inputColor,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            ),
           ),
         ],
       ),
@@ -131,20 +170,33 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
   }
 
   Widget _buildRoleTab() {
+    const inputColor = Color(0xFF2A2A35);
+    const textColor = Colors.white;
+    const hintColor = Colors.grey;
+
     return ListView(
       children: [
         DropdownButtonFormField<UserRole>(
           value: _selectedRole,
-          decoration: const InputDecoration(labelText: 'Rôle'),
+          dropdownColor: inputColor,
+          style: const TextStyle(color: textColor),
+          decoration: InputDecoration(
+            labelText: 'Rôle',
+            labelStyle: const TextStyle(color: hintColor),
+            filled: true,
+            fillColor: inputColor,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+          ),
           items: widget.isAdminMode 
             ? [
-                const DropdownMenuItem(value: UserRole.mainAdmin, child: Text('Admin Principal')),
-                const DropdownMenuItem(value: UserRole.coachAdmin, child: Text('Admin Coach')),
-                const DropdownMenuItem(value: UserRole.groupAdmin, child: Text('Admin Groupe')),
+                const DropdownMenuItem(value: UserRole.mainAdmin, child: Text('Admin Principal', style: TextStyle(color: textColor))),
+                const DropdownMenuItem(value: UserRole.coachAdmin, child: Text('Admin Coach', style: TextStyle(color: textColor))),
+                const DropdownMenuItem(value: UserRole.groupAdmin, child: Text('Admin Groupe', style: TextStyle(color: textColor))),
               ]
             : [
-                const DropdownMenuItem(value: UserRole.member, child: Text('Adhérent')),
-                const DropdownMenuItem(value: UserRole.visitor, child: Text('Visiteur')),
+                const DropdownMenuItem(value: UserRole.member, child: Text('Adhérent', style: TextStyle(color: textColor))),
+                const DropdownMenuItem(value: UserRole.visitor, child: Text('Visiteur', style: TextStyle(color: textColor))),
               ],
           onChanged: (value) {
             setState(() {
@@ -157,10 +209,19 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
         if (!widget.isAdminMode)
           DropdownButtonFormField<RunningGroup>(
             value: _selectedGroup,
-            decoration: const InputDecoration(labelText: 'Groupe'),
+            dropdownColor: inputColor,
+            style: const TextStyle(color: textColor),
+            decoration: InputDecoration(
+              labelText: 'Groupe',
+              labelStyle: const TextStyle(color: hintColor),
+              filled: true,
+              fillColor: inputColor,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            ),
             items: RunningGroup.values.map((g) => DropdownMenuItem(
               value: g, 
-              child: Text('Groupe ${g.toString().split('.').last.replaceAll('group', '')}')
+              child: Text('Groupe ${g.toString().split('.').last.replaceAll('group', '')}', style: const TextStyle(color: textColor))
             )).toList(),
             onChanged: (val) => setState(() => _selectedGroup = val),
           ),
@@ -169,11 +230,16 @@ class _EditUserDialogState extends State<EditUserDialog> with SingleTickerProvid
   }
 
   Widget _buildPermissionsTab() {
+    const textColor = Colors.white;
+    
     return ListView(
       children: _permissions.keys.map((key) {
         return CheckboxListTile(
-          title: Text(_getPermissionLabel(key)),
+          title: Text(_getPermissionLabel(key), style: const TextStyle(color: textColor)),
           value: _permissions[key],
+          activeColor: AppColors.primary,
+          checkColor: Colors.white,
+          side: const BorderSide(color: Colors.grey),
           onChanged: (val) => setState(() => _permissions[key] = val!),
         );
       }).toList(),

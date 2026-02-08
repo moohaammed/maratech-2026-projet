@@ -59,7 +59,14 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Use fixed dark theme colors for consistency with Admin Dashboard
+    const bgColor = Color(0xFF1E1E2C);
+    const inputColor = Color(0xFF2A2A35);
+    const textColor = Colors.white;
+    const hintColor = Colors.grey;
+
     return Dialog(
+      backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -83,10 +90,15 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                 
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
                     labelText: 'Nom du groupe',
-                    prefixIcon: Icon(Icons.group_add),
-                    border: OutlineInputBorder(),
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.group_add, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
                   ),
                   validator: (v) => v!.isEmpty ? 'Requis' : null,
                 ),
@@ -94,15 +106,21 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                 
                 DropdownButtonFormField<GroupLevel>(
                   value: _selectedLevel,
-                  decoration: const InputDecoration(
+                  dropdownColor: inputColor,
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
                     labelText: 'Niveau',
-                    prefixIcon: Icon(Icons.signal_cellular_alt),
-                    border: OutlineInputBorder(),
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.signal_cellular_alt, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
                   ),
                   items: const [
-                    DropdownMenuItem(value: GroupLevel.beginner, child: Text('Débutant')),
-                    DropdownMenuItem(value: GroupLevel.intermediate, child: Text('Intermédiaire')),
-                    DropdownMenuItem(value: GroupLevel.advanced, child: Text('Avancé')),
+                    DropdownMenuItem(value: GroupLevel.beginner, child: Text('Débutant', style: TextStyle(color: textColor))),
+                    DropdownMenuItem(value: GroupLevel.intermediate, child: Text('Intermédiaire', style: TextStyle(color: textColor))),
+                    DropdownMenuItem(value: GroupLevel.advanced, child: Text('Avancé', style: TextStyle(color: textColor))),
                   ],
                   onChanged: (val) => setState(() => _selectedLevel = val!),
                 ),
@@ -112,14 +130,20 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     value: _selectedAdminId,
-                    decoration: const InputDecoration(
+                    dropdownColor: inputColor,
+                    style: const TextStyle(color: textColor),
+                    decoration: InputDecoration(
                       labelText: 'Admin du Groupe (Responsable)',
-                      prefixIcon: Icon(Icons.admin_panel_settings),
-                      border: OutlineInputBorder(),
+                      labelStyle: const TextStyle(color: hintColor),
+                      prefixIcon: const Icon(Icons.admin_panel_settings, color: hintColor),
+                      filled: true,
+                      fillColor: inputColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
                     ),
                     items: _groupAdmins.map((admin) => DropdownMenuItem(
                       value: admin.id,
-                      child: Text(admin.fullName),
+                      child: Text(admin.fullName, style: const TextStyle(color: textColor)),
                     )).toList(),
                     onChanged: (val) => setState(() => _selectedAdminId = val),
                     validator: (v) => _isMainAdmin && v == null ? 'Veuillez assigner un admin' : null,
@@ -139,7 +163,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler'),
+                      child: const Text('Annuler', style: TextStyle(color: hintColor)),
                     ),
                     const SizedBox(height: 8),
                     ElevatedButton(

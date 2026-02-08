@@ -32,8 +32,16 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
+    // Fixed dark theme colors
+    const bgColor = Color(0xFF1E1E2C);
+    const inputColor = Color(0xFF2A2A35);
+    const textColor = Colors.white;
+    const hintColor = Colors.grey;
+
     return Dialog(
+      backgroundColor: bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -57,27 +65,63 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                 
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Nom complet', prefixIcon: Icon(Icons.person)),
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Nom complet', 
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.person, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
                   validator: (v) => v!.isEmpty ? 'Requis' : null,
                 ),
                 const SizedBox(height: 12),
                 
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Email', 
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.email, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
                   validator: (v) => v!.contains('@') ? null : 'Invalide',
                 ),
                 const SizedBox(height: 12),
                 
                 TextFormField(
                   controller: _phoneController,
-                  decoration: const InputDecoration(labelText: 'Téléphone', prefixIcon: Icon(Icons.phone)),
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Téléphone', 
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.phone, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 
                 TextFormField(
                   controller: _pinController,
-                  decoration: const InputDecoration(labelText: 'PIN (3 chiffres)', prefixIcon: Icon(Icons.lock)),
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'PIN (3 chiffres)', 
+                    labelStyle: const TextStyle(color: hintColor),
+                    prefixIcon: const Icon(Icons.lock, color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
                   maxLength: 3,
                   validator: (v) => v!.length == 3 ? null : '3 chiffres',
                 ),
@@ -85,7 +129,16 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                 
                 DropdownButtonFormField<UserRole>(
                   value: _selectedRole,
-                  decoration: const InputDecoration(labelText: 'Rôle'),
+                  dropdownColor: inputColor,
+                  style: const TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Rôle',
+                    labelStyle: const TextStyle(color: hintColor),
+                    filled: true,
+                    fillColor: inputColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
                   items: _getRoleItems(),
                   onChanged: (value) => setState(() => _selectedRole = value!),
                 ),
@@ -93,13 +146,20 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                 if (!widget.isAdminMode) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<RunningGroup>(
-                    decoration: const InputDecoration(
+                    dropdownColor: inputColor,
+                    style: const TextStyle(color: textColor),
+                    decoration: InputDecoration(
                       labelText: 'Groupe (Classique)',
-                      prefixIcon: Icon(Icons.group),
+                      labelStyle: const TextStyle(color: hintColor),
+                      prefixIcon: const Icon(Icons.group, color: hintColor),
+                      filled: true,
+                      fillColor: inputColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
                     ),
                     items: RunningGroup.values.map((g) => DropdownMenuItem(
                       value: g, 
-                      child: Text('Groupe ${g.toString().split('.').last.replaceAll('group', '')}')
+                      child: Text('Groupe ${g.toString().split('.').last.replaceAll('group', '')}', style: const TextStyle(color: textColor))
                     )).toList(),
                     onChanged: (val) => setState(() => _selectedGroup = val),
                   ),
@@ -112,7 +172,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler', style: TextStyle(color: Colors.grey)),
+                      child: const Text('Annuler', style: TextStyle(color: hintColor)),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
@@ -134,16 +194,17 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
   }
 
   List<DropdownMenuItem<UserRole>> _getRoleItems() {
+    const textColor = Colors.white;
     if (widget.isAdminMode) {
       return [
-        const DropdownMenuItem(value: UserRole.mainAdmin, child: Text('Admin Principal')),
-        const DropdownMenuItem(value: UserRole.coachAdmin, child: Text('Admin Coach')),
-        const DropdownMenuItem(value: UserRole.groupAdmin, child: Text('Admin Groupe')),
+        const DropdownMenuItem(value: UserRole.mainAdmin, child: Text('Admin Principal', style: TextStyle(color: textColor))),
+        const DropdownMenuItem(value: UserRole.coachAdmin, child: Text('Admin Coach', style: TextStyle(color: textColor))),
+        const DropdownMenuItem(value: UserRole.groupAdmin, child: Text('Admin Groupe', style: TextStyle(color: textColor))),
       ];
     } else {
       return [
-        const DropdownMenuItem(value: UserRole.member, child: Text('Adhérent')),
-        const DropdownMenuItem(value: UserRole.visitor, child: Text('Visiteur')),
+        const DropdownMenuItem(value: UserRole.member, child: Text('Adhérent', style: TextStyle(color: textColor))),
+        const DropdownMenuItem(value: UserRole.visitor, child: Text('Visiteur', style: TextStyle(color: textColor))),
       ];
     }
   }
