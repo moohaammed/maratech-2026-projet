@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { UserService, RunningGroup } from '../../core/services/UserService';
+import NotificationBadge from '../../components/NotificationBadge';
+import { useChatNotifications } from '../../core/services/NotificationService';
 import { useAccessibility } from '../../core/services/AccessibilityContext';
 import { useSpeechSynthesis } from '../../hooks/useSpeech';
 import { appColors } from '../../core/theme/appColors';
@@ -17,6 +20,7 @@ const TABS = {
 };
 
 export default function MemberHomeScreen({ user }) {
+  const navigate = useNavigate();
   const accessibility = useAccessibility();
   const { speak, stop: stopSpeech } = useSpeechSynthesis();
 
@@ -26,6 +30,9 @@ export default function MemberHomeScreen({ user }) {
 
   const isBlind = accessibility?.visualNeeds === 'blind';
   const highContrast = !!accessibility?.highContrast;
+
+  // Real-time Chat Notifications
+  useChatNotifications(auth.currentUser, userDoc?.assignedGroup || userDoc?.group || userDoc?.groupId);
 
   const theme = useMemo(() => {
     const primary = highContrast ? appColors.highContrastPrimary : appColors.primary;
@@ -88,12 +95,23 @@ export default function MemberHomeScreen({ user }) {
             stopSpeech={stopSpeech}
             loadingUserDoc={loadingUserDoc}
             userDoc={userDoc}
+            navigate={navigate}
           />
         )}
         {activeTab === TABS.EVENTS && (
           <div className="member-tab-fill" style={{ background: theme.background }}>
             <div className="member-appbar" style={{ background: theme.primary, color: highContrast ? theme.primary : '#fff' }}>
               <div className="member-appbar-title">Tous les événements</div>
+              <button
+                className="icon-button-light"
+                onClick={() => navigate('/notifications')}
+                aria-label="Notifications"
+                style={{ width: 44, height: 44, padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <NotificationBadge groupId={userDoc?.assignedGroup || userDoc?.group || userDoc?.groupId}>
+                  <span className="material-icons" style={{ fontSize: 24 }}>notifications</span>
+                </NotificationBadge>
+              </button>
             </div>
             <div className="member-tab-content">
               <EventListScreen canCreate={false} />
@@ -104,7 +122,7 @@ export default function MemberHomeScreen({ user }) {
           <MemberClubTab theme={theme} isBlind={isBlind} speak={speak} />
         )}
         {activeTab === TABS.CHAT && (
-          <MemberChatTab theme={theme} isBlind={isBlind} speak={speak} userDoc={userDoc} />
+          <MemberChatTab theme={theme} isBlind={isBlind} speak={speak} userDoc={userDoc} navigate={navigate} />
         )}
         {activeTab === TABS.PROFILE && (
           <MemberProfileTab
@@ -112,6 +130,7 @@ export default function MemberHomeScreen({ user }) {
             loadingUserDoc={loadingUserDoc}
             userDoc={userDoc}
             onLogout={handleLogout}
+            navigate={navigate}
           />
         )}
 
@@ -130,7 +149,7 @@ export default function MemberHomeScreen({ user }) {
   );
 }
 
-function MemberChatTab({ theme, isBlind, speak, userDoc }) {
+function MemberChatTab({ theme, isBlind, speak, userDoc, navigate }) {
   useEffect(() => {
     if (!isBlind) return;
     const groupLabel = getGroupName(userDoc?.assignedGroup || userDoc?.group || userDoc?.groupId);
@@ -144,6 +163,16 @@ function MemberChatTab({ theme, isBlind, speak, userDoc }) {
     <div className="member-tab-fill" style={{ background: theme.background }}>
       <div className="member-appbar" style={{ background: theme.primary, color: '#fff' }}>
         <div className="member-appbar-title">Chat du groupe</div>
+        <button
+          className="icon-button-light"
+          onClick={() => navigate('/notifications')}
+          aria-label="Notifications"
+          style={{ width: 44, height: 44, padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <NotificationBadge>
+            <span className="material-icons" style={{ fontSize: 24 }}>notifications</span>
+          </NotificationBadge>
+        </button>
       </div>
       <div className="member-tab-content">
         <GroupChat user={auth.currentUser} groupId={groupId} />
@@ -195,7 +224,7 @@ function MemberBottomNav({ activeTab, onSelectTab, theme, highContrast, isBlind,
   );
 }
 
-function MemberHomeTab({ theme, isBlind, speak, stopSpeech, loadingUserDoc, userDoc }) {
+function MemberHomeTab({ theme, isBlind, speak, stopSpeech, loadingUserDoc, userDoc, navigate }) {
   useEffect(() => {
     if (!isBlind) return;
     if (loadingUserDoc) return;
@@ -216,6 +245,16 @@ function MemberHomeTab({ theme, isBlind, speak, stopSpeech, loadingUserDoc, user
     <div className="member-tab-fill" style={{ background: theme.background }}>
       <div className="member-appbar" style={{ background: theme.primary, color: '#fff' }}>
         <div className="member-appbar-title">Running Club Tunis</div>
+        <button
+          className="icon-button-light"
+          onClick={() => navigate('/notifications')}
+          aria-label="Notifications"
+          style={{ width: 44, height: 44, padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <NotificationBadge>
+            <span className="material-icons" style={{ fontSize: 24 }}>notifications</span>
+          </NotificationBadge>
+        </button>
       </div>
 
       <div className="member-tab-content">
@@ -313,22 +352,33 @@ function ValueItem({ title, desc, theme }) {
   );
 }
 
-function MemberProfileTab({ theme, loadingUserDoc, userDoc, onLogout }) {
+function MemberProfileTab({ theme, loadingUserDoc, userDoc, onLogout, navigate }) {
   const name = userDoc?.fullName || userDoc?.name || '';
   const email = userDoc?.email || auth.currentUser?.email || '';
   const groupLabel = getGroupName(userDoc?.assignedGroup || userDoc?.group || userDoc?.groupId);
 
   return (
     <div className="member-tab-fill" style={{ background: theme.background }}>
-      <div className="member-appbar" style={{ background: theme.primary, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '16px' }}>
+      <div className="member-appbar" style={{ background: theme.primary, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '8px' }}>
         <div className="member-appbar-title">Profil</div>
-        <button className="icon-button-light" onClick={onLogout} title="Déconnexion">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            className="icon-button-light"
+            onClick={() => navigate('/notifications')}
+            aria-label="Notifications"
+          >
+            <NotificationBadge>
+              <span className="material-icons" style={{ fontSize: 24 }}>notifications</span>
+            </NotificationBadge>
+          </button>
+          <button className="icon-button-light" onClick={onLogout} title="Déconnexion">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="member-tab-content">
@@ -436,13 +486,13 @@ function getTabLabel(tab) {
 }
 
 function getGroupName(group) {
-  const g = (group || '').toString();
+  const g = (group || '').toString().trim();
   const normalized = g.toLowerCase();
 
-  if (normalized.includes('group1') || normalized === 'beginner' || normalized.includes('début')) return 'Débutants';
-  if (normalized.includes('group2')) return 'Intermédiaire';
-  if (normalized.includes('group3') || normalized.includes('inter')) return 'Avancé';
-  if (normalized.includes('group4') || normalized.includes('group5') || normalized.includes('adv') || normalized.includes('confirm')) return 'Confirmés';
+  if (normalized.includes('group1') || normalized === '1' || normalized === 'beginner' || normalized.includes('début')) return 'Débutants';
+  if (normalized.includes('group2') || normalized === '2') return 'Intermédiaire';
+  if (normalized.includes('group3') || normalized === '3' || normalized.includes('inter')) return 'Avancé';
+  if (normalized.includes('group4') || normalized === '4' || normalized.includes('group5') || normalized === '5' || normalized.includes('adv') || normalized.includes('confirm')) return 'Confirmés';
 
   return 'Non assigné';
 }

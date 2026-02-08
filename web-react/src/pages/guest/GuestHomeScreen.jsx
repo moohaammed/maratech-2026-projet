@@ -34,31 +34,33 @@ export default function GuestHomeScreen() {
                         <h1 className="page-title">Running Club Tunis</h1>
                         <p className="page-subtitle">Bienvenue dans notre communauté de coureurs</p>
                     </div>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="login-button"
-                        style={{
-                            height: `${44 * Math.min(textScale, 1.2)}px`,
-                            backgroundColor: primaryColor,
-                            color: highContrast ? '#000000' : '#FFFFFF',
-                            border: highContrast ? `2px solid ${borderColor}` : 'none',
-                            borderRadius: '12px',
-                            padding: `0 ${20 * Math.min(textScale, 1.2)}px`,
-                            fontSize: `${14 * textScale}px`,
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            transition: 'all 0.2s ease',
-                            boxShadow: highContrast ? 'none' : `0 4px 12px ${appColors.primary}33`,
-                        }}
-                        title="Se connecter"
-                    >
-                        <span>→</span>
-                        <span>Se connecter</span>
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="login-button"
+                            style={{
+                                height: `${44 * Math.min(textScale, 1.2)}px`,
+                                backgroundColor: primaryColor,
+                                color: highContrast ? '#000000' : '#FFFFFF',
+                                border: highContrast ? `2px solid ${borderColor}` : 'none',
+                                borderRadius: '12px',
+                                padding: `0 ${20 * Math.min(textScale, 1.2)}px`,
+                                fontSize: `${14 * textScale}px`,
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: highContrast ? 'none' : `0 4px 12px ${appColors.primary}33`,
+                            }}
+                            title="Se connecter"
+                        >
+                            <span>→</span>
+                            <span>Se connecter</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

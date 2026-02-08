@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { auth } from '../../../lib/firebase';
 import { GroupService, GroupLevel } from '../../../core/services/GroupService';
+import { appColors } from '../../../core/theme/appColors';
 
-export default function CreateGroupDialog({ currentUser, onClose, onCreated }) {
+export default function CreateGroupDialog({ adminId, onClose, onCreated }) {
     const [name, setName] = useState('');
     const [level, setLevel] = useState(GroupLevel.BEGINNER);
     const [loading, setLoading] = useState(false);
@@ -16,103 +16,124 @@ export default function CreateGroupDialog({ currentUser, onClose, onCreated }) {
         setError('');
 
         try {
-            const adminId = currentUser?.uid || auth.currentUser?.uid || currentUser?.docId;
-            await GroupService.createGroup(name, level, adminId);
+            await GroupService.createGroup(name.trim(), level, adminId);
             onCreated?.();
             onClose();
         } catch (err) {
             console.error(err);
-            setError("Erreur lors de la création du groupe");
+            setError('Erreur lors de la création du groupe.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="dialog-overlay" onClick={onClose}>
-            <div className="dialog-content" onClick={e => e.stopPropagation()}>
-                <div className="dialog-header">
-                    <h2 className="dialog-title">Créer un Nouveau Groupe</h2>
-                    <button 
-                        type="button" 
-                        className="dialog-close" 
-                        onClick={onClose}
-                        aria-label="Fermer"
-                    >
-                        ✕
-                    </button>
+        <div style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+        }}>
+            <div style={{
+                backgroundColor: 'white',
+                borderRadius: '20px',
+                width: '100%',
+                maxWidth: '400px',
+                overflow: 'hidden',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+            }}>
+                <div style={{
+                    backgroundColor: appColors.primary,
+                    color: 'white',
+                    padding: '20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <h2 style={{ margin: 0, fontSize: '18px' }}>Nouveau Groupe</h2>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer' }}>×</button>
                 </div>
 
-                <div className="dialog-body">
-                    {error && (
-                        <div className="form-error mb-4">
-                            {error}
-                        </div>
-                    )}
+                <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>Nom du Groupe</label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="ex: Les Gazelles, Groupe Matinal..."
+                            required
+                            autoFocus
+                            style={{
+                                padding: '12px',
+                                borderRadius: '10px',
+                                border: '1px solid #ddd',
+                                fontSize: '16px',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="group-name">
-                                Nom du groupe
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <span className="text-xl">👥</span>
-                                <input
-                                    id="group-name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ex: Groupe A"
-                                    className="form-input"
-                                    required
-                                />
-                            </div>
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>Niveau de Course</label>
+                        <select
+                            value={level}
+                            onChange={(e) => setLevel(e.target.value)}
+                            style={{
+                                padding: '12px',
+                                borderRadius: '10px',
+                                border: '1px solid #ddd',
+                                fontSize: '16px',
+                                outline: 'none',
+                                backgroundColor: '#fcfcfc'
+                            }}
+                        >
+                            <option value={GroupLevel.BEGINNER}>Débutant 🐢</option>
+                            <option value={GroupLevel.INTERMEDIATE}>Intermédiaire 🏃</option>
+                            <option value={GroupLevel.ADVANCED}>Avancé ⚡</option>
+                        </select>
+                    </div>
 
-                        <div className="form-group mb-6">
-                            <label className="form-label" htmlFor="group-level">
-                                Niveau (Level)
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <span className="text-xl">📊</span>
-                                <select
-                                    id="group-level"
-                                    value={level}
-                                    onChange={(e) => setLevel(e.target.value)}
-                                    className="form-input"
-                                >
-                                    <option value={GroupLevel.BEGINNER || 'beginner'}>Débutant</option>
-                                    <option value={GroupLevel.INTERMEDIATE || 'intermediate'}>Intermédiaire</option>
-                                    <option value={GroupLevel.ADVANCED || 'advanced'}>Avancé</option>
-                                </select>
-                            </div>
-                        </div>
+                    {error && <div style={{ color: '#d32f2f', fontSize: '14px', textAlign: 'center' }}>{error}</div>}
 
-                        <div className="dialog-footer">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="btn btn-secondary"
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="btn btn-primary"
-                            >
-                                {loading ? (
-                                    <>
-                                        <span className="loading"></span>
-                                        Création...
-                                    </>
-                                ) : (
-                                    'Créer le Groupe'
-                                )}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            style={{
+                                flex: 1,
+                                padding: '12px',
+                                borderRadius: '10px',
+                                border: 'None',
+                                backgroundColor: '#f5f5f5',
+                                color: '#666',
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            style={{
+                                flex: 2,
+                                padding: '12px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                backgroundColor: appColors.primary,
+                                color: 'white',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                opacity: loading ? 0.7 : 1
+                            }}
+                        >
+                            {loading ? 'Création...' : 'Créer le groupe'}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );

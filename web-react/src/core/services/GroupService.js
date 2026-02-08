@@ -11,7 +11,8 @@ import {
     onSnapshot,
     serverTimestamp,
     arrayUnion,
-    arrayRemove
+    arrayRemove,
+    or
 } from "firebase/firestore";
 
 export const GroupLevel = {
@@ -123,9 +124,15 @@ export const GroupService = {
 
     // Get members of a specific group
     getGroupMembersStream: (groupId, callback) => {
-        // Query users collection where assignedGroupId equals the group ID
-        // This is more robust than fetching by IDs in an array if the array is large
-        const q = query(collection(db, "users"), where("assignedGroupId", "==", groupId));
+        // Query users collection checking all possible group ID fields
+        const q = query(
+            collection(db, "users"),
+            or(
+                where("assignedGroupId", "==", groupId),
+                where("groupId", "==", groupId),
+                where("group", "==", groupId)
+            )
+        );
         return onSnapshot(q, (snapshot) => {
             const users = snapshot.docs.map(doc => ({
                 id: doc.id,

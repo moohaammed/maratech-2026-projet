@@ -162,6 +162,36 @@
   --z-toast: 1080;
 }
 
+/* High Contrast Theme (Accessibility) */
+[data-theme="highContrast"] {
+  --color-primary: #00E676;
+  /* Bright Green for primary actions */
+  --color-primary-dark: #00C853;
+  --color-primary-light: rgba(0, 230, 118, 0.15);
+  --color-accent: #00E676;
+
+  --color-background: #000000;
+  --color-surface: #121212;
+  --color-surface-elevated: #1E1E1E;
+  --color-divider: #444444;
+  --color-border: #666666;
+
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --color-text-disabled: rgba(255, 255, 255, 0.5);
+
+  --color-success: #00E676;
+  --color-warning: #FFEA00;
+  --color-error: #FF5252;
+  --color-info: #40C4FF;
+
+  --shadow-sm: none;
+  --shadow-base: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+}
 
 /* Base Styles */
 * {

@@ -15,6 +15,7 @@ import CoachDashboard from "./pages/coach/CoachDashboard";
 import EventDetailScreen from "./pages/coach/events/EventDetailScreen";
 import GuestHomeScreen from "./pages/guest/GuestHomeScreen";
 import MemberHomeScreen from './pages/member/MemberHomeScreen';
+import NotificationScreen from "./pages/NotificationScreen";
 import "./styles/layout.css";
 
 function Navigation({ user, normalizeRole }) {
@@ -145,6 +146,8 @@ export default function App() {
             enhancedUser.isAdmin = isAdmin;
             enhancedUser.role = normalizeRole(userDoc.role);
             enhancedUser.docId = userDoc.id; // Store Firestore ID just in case
+            enhancedUser.assignedGroup = userDoc.assignedGroup;
+            enhancedUser.assignedGroupId = userDoc.assignedGroupId;
 
             console.log("User Access Level:", { role: enhancedUser.role, isAdmin: enhancedUser.isAdmin });
             setUser(enhancedUser);
@@ -162,6 +165,16 @@ export default function App() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setTimeout(() => {
+        import("./core/services/NotificationService").then(({ NotificationService }) => {
+          NotificationService.requestDesktopPermission();
+        });
+      }, 2000); // Delay slightly to not interrupt splash/wizard
+    }
+  }, [user]);
 
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
   const handleWizardFinish = useCallback(() => setShowWizard(false), []);
@@ -202,7 +215,7 @@ export default function App() {
               isRole(user.role, UserRole.GROUP_ADMIN) ? (
                 <GroupAdminDashboard currentUser={user} />
               ) : isRole(user.role, UserRole.COACH_ADMIN) ? (
-                <CoachDashboard />
+                <CoachDashboard currentUser={user} />
               ) : user.isAdmin ? (
                 <AdminDashboard />
               ) : (
@@ -210,6 +223,7 @@ export default function App() {
               )
             } />
             <Route path="/events/:id" element={<EventDetailScreen />} />
+            <Route path="/notifications" element={<NotificationScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AppLayout>
@@ -218,6 +232,7 @@ export default function App() {
           <Route path="/" element={<LoginScreen />} />
           <Route path="/guest" element={<GuestHomeScreen />} />
           <Route path="/events/:id" element={<EventDetailScreen />} />
+          <Route path="/notifications" element={<NotificationScreen />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       )}

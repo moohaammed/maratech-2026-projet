@@ -2,6 +2,7 @@
     padding: 24px;
     position: relative;
     min-height: 400px;
+    background-color: var(--color-background);
 }
 
 /* Header with Search */
@@ -25,11 +26,11 @@
 .search-input {
     width: 100%;
     padding: 14px 48px 14px 48px;
-    border: 1px solid #E0E0E0;
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     font-size: 16px;
-    color: #212121;
-    background-color: #FAFAFA;
+    color: var(--color-text-primary);
+    background-color: var(--color-surface);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -85,8 +86,13 @@
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Empty State */
@@ -114,25 +120,25 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding-bottom: 80px; /* Space for FAB */
+    padding-bottom: 80px;
+    /* Space for FAB */
 }
 
 /* User Card - Material Design */
 .user-card {
-    background: white;
+    background: var(--color-surface);
     border-radius: 12px;
     padding: 16px;
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 
-                0 1px 2px rgba(0, 0, 0, 0.24);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-divider);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .user-card:hover {
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 
-                0 3px 6px rgba(0, 0, 0, 0.23);
+    box-shadow: var(--shadow-md);
     transform: translateY(-2px);
 }
 
@@ -258,25 +264,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 3px 5px -1px rgba(0,0,0,0.2), 
-                0 6px 10px 0 rgba(0,0,0,0.14), 
-                0 1px 18px 0 rgba(0,0,0,0.12);
+    box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2),
+        0 6px 10px 0 rgba(0, 0, 0, 0.14),
+        0 1px 18px 0 rgba(0, 0, 0, 0.12);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 50;
 }
 
 .fab:hover {
     background-color: #D32F2F;
-    box-shadow: 0 5px 5px -3px rgba(0,0,0,0.2), 
-                0 8px 10px 1px rgba(0,0,0,0.14), 
-                0 3px 14px 2px rgba(0,0,0,0.12);
+    box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+        0 8px 10px 1px rgba(0, 0, 0, 0.14),
+        0 3px 14px 2px rgba(0, 0, 0, 0.12);
     transform: scale(1.05);
 }
 
 .fab:active {
-    box-shadow: 0 7px 8px -4px rgba(0,0,0,0.2), 
-                0 12px 17px 2px rgba(0,0,0,0.14), 
-                0 5px 22px 4px rgba(0,0,0,0.12);
+    box-shadow: 0 7px 8px -4px rgba(0, 0, 0, 0.2),
+        0 12px 17px 2px rgba(0, 0, 0, 0.14),
+        0 5px 22px 4px rgba(0, 0, 0, 0.12);
     transform: scale(0.98);
 }
 

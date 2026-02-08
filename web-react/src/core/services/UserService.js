@@ -71,6 +71,7 @@ export const UserService = {
         if (!data) return null;
 
         const role = this.parseUserRole(data.role);
+        const assignedGroup = data.assignedGroup || data.group || data.groupId || null;
 
         return {
             id: doc.id,
@@ -79,8 +80,8 @@ export const UserService = {
             phone: data.phone || '',
             cinLastDigits: data.cinLastDigits || '',
             role: role,
-            assignedGroup: data.assignedGroup || null,
-            assignedGroupId: data.assignedGroupId || null,
+            assignedGroup: assignedGroup,
+            assignedGroupId: data.assignedGroupId || data.groupId || data.group || null,
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
             lastLogin: data.lastLogin instanceof Timestamp ? data.lastLogin.toDate() : null,
             isActive: data.isActive ?? true,
